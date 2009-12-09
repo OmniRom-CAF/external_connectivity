@@ -24,7 +24,7 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_C_INCLUDES := \
         external/connectivity/cnd/inc  \
         external/connectivity/include/cne \
-        external/STLport-5.2.1/stlport \
+        external/stlport/stlport \
         system/core/include \
         frameworks/base/include \
         bionic/libc/arch-arm/include \
