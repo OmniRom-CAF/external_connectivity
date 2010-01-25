@@ -1,10 +1,10 @@
 /**----------------------------------------------------------------------------
   @file CRefCne.cpp
 
-  
+
 -----------------------------------------------------------------------------*/
 
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -43,8 +43,7 @@
 /*----------------------------------------------------------------------------
  * Include Files
  * -------------------------------------------------------------------------*/
-#include "stdio.h"
-#include "cne_svc.h"
+#include "cne.h"
 #include "CRefCne.h"
 #include "CRefCneRadio.h"
 #include "RefCneDefs.h"
@@ -53,7 +52,7 @@
  * Static Member declarations
  * -------------------------------------------------------------------------*/
 CRefCne* CRefCne::m_sInstancePtr = NULL;
-cne_rat_type CRefCne::m_siPrefNetwork = CNE_RAT_NONE;
+cne_rat_type CRefCne::m_siPrefNetwork = CNE_RAT_WLAN;
 
 /*----------------------------------------------------------------------------
  * Type Declarations
@@ -67,7 +66,7 @@ cne_rat_type CRefCne::m_siPrefNetwork = CNE_RAT_NONE;
 
  * DESCRIPTION   The user of this class will call this function to get an
                  instance of the class. All other public functions will be
-                 called on this instance 
+                 called on this instance
 
  * DEPENDENCIES  None
 
@@ -88,19 +87,21 @@ CRefCne* CRefCne::getInstance
 /*----------------------------------------------------------------------------
  * FUNCTION      Constructor
 
- * DESCRIPTION   Creates the RefCne object & initializes members appropriately 
+ * DESCRIPTION   Creates the RefCne object & initializes members appropriately
 
  * DEPENDENCIES  None
 
- * RETURN VALUE  an instance of CRefCne class 
+ * RETURN VALUE  an instance of CRefCne class
 
  * SIDE EFFECTS  RefCne object is created
  *--------------------------------------------------------------------------*/
 CRefCne::CRefCne ()
 {
+  RCNE_MSG_INFO("In reference CNE constructor");
   m_iNumActiveNetworks = NULL;
   RefCneWifi = new  CRefCneRadio(CNE_RAT_WLAN);
   RefCneWwan = new  CRefCneRadio(CNE_RAT_WWAN);
+  RCNE_MSG_INFO("Reference CNE constructed");
 }
 /*----------------------------------------------------------------------------
  * FUNCTION      RefCneCmdHdlr
@@ -132,36 +133,39 @@ void CRefCne::RefCneCmdHdlr
         ref_cne_ret_enum_type ret = myself->SetPrefNetCmd(pCmdDataPtr);
         if (ret != REF_CNE_RET_OK)
         {
-          //ASSERT(0);
+          break;
         }
-        break;
+        myself->ProcessStateChange();
       }
+      break;
     case CNE_REQUEST_UPDATE_WLAN_INFO_CMD:
       {
         RCNE_MSG_INFO("Command hdlr: Update Wifi info cmd called [%d]",cmd);
         ref_cne_ret_enum_type ret = myself->UpdateWlanInfoCmd(pCmdDataPtr);
         if (ret != REF_CNE_RET_OK)
         {
-          //ASSERT(0);
+          break;
         }
-        break;
+	myself->ProcessStateChange();
       }
+      break;
     case CNE_REQUEST_UPDATE_WWAN_INFO_CMD:
       {
         RCNE_MSG_INFO("Command hdlr: Update WWAN info cmd called [%d]",cmd);
         ref_cne_ret_enum_type ret = myself->UpdateWwanInfoCmd(pCmdDataPtr);
         if (ret != REF_CNE_RET_OK)
         {
-          //assert(0);
+          break;
         }
-        break;
+	myself->ProcessStateChange();
       }
+      break;
     default:
       {
         RCNE_MSG_ERROR("Command hdlr: Unrecognized command recvd [%d]",cmd);
       }
   }
-  myself->ProcessStateChange();
+
 }
 /*----------------------------------------------------------------------------
  * FUNCTION      ProcessStateChange
@@ -186,19 +190,19 @@ void CRefCne::ProcessStateChange
    * in boot up process, so do nothing */
   if (myPrefNet == NULL)
   {
-    return;
+    RCNE_MSG_ERROR("Invalid network preference: [%d]", myPrefNet);
   }
 
   CRefCneRadio* pref;
   CRefCneRadio* nonpref;
   if (myPrefNet == CNE_RAT_WLAN )
   {
-    RCNE_MSG_DEBUG("PSC: Preferred RAT is Wifi, non-preferred RAT is WWAN");
+    RCNE_MSG_INFO("PSC: Preferred RAT is Wifi, non-preferred RAT is WWAN");
     pref = RefCneWifi;
     nonpref = RefCneWwan;
   } else
   {
-    RCNE_MSG_DEBUG("PSC: Preferred RAT is WWAN, non-preferred RAT is Wifi");
+    RCNE_MSG_INFO("PSC: Preferred RAT is WWAN, non-preferred RAT is Wifi");
     pref = RefCneWwan;
     nonpref = RefCneWifi;
   }
@@ -219,12 +223,12 @@ void CRefCne::ProcessStateChange
        *  If both Radios are up turn off the non-preferred network
        */
       {
-        RCNE_MSG_DEBUG("PSC: both radios are up; disconnecting"
+        RCNE_MSG_INFO("PSC: both radios are up; disconnecting"
                        " non-preferred radio");
         nonpref->TurnOff();
         nonpref->SetPending(REF_CNE_NET_PENDING_DISCONNECT);
-        break;
       }
+	  break;
     case ONE_RADIO_IS_CONNECTED:
       /**
        * If only one radio is up check if it is the preferred one,
@@ -241,8 +245,8 @@ void CRefCne::ProcessStateChange
         {
           RCNE_MSG_INFO("PSC: Preferred radio is connected");
         }
-        break;
       }
+	  break;
     case ALL_RADIOS_ARE_DISCONNECTED:
       /**
        * If both networks are disconnected then try to bring up
@@ -254,8 +258,8 @@ void CRefCne::ProcessStateChange
         pref->SetPending(REF_CNE_NET_PENDING_CONNECT);
         nonpref->TurnOn();
         nonpref->SetPending(REF_CNE_NET_PENDING_CONNECT);
-        break;
       }
+	  break;
     default:
       {
         RCNE_MSG_WARN("PSC: number of active networks is invalid");
@@ -280,15 +284,23 @@ ref_cne_ret_enum_type CRefCne::UpdateWlanInfoCmd
 )
 {
   RCNE_MSG_DEBUG("UWLICH: Wlan update info cmd handler called");
-  refCneWlanInfoCmdFmt *WlanInfoCmd;
-  WlanInfoCmd  =   (refCneWlanInfoCmdFmt *)pWifiCmdData;
-  if (WlanInfoCmd->status == NULL)
+  if (pWifiCmdData == NULL)
   {
-    RCNE_MSG_ERROR("UWLICH: Invalid (==NULL) WLAN status received");
+    RCNE_MSG_ERROR("UWLICH: Cmd data ptr is Null, bailing out...");
     return(REF_CNE_RET_ERROR);
   }
+  refCneWlanInfoCmdFmt *WlanInfoCmd;
+  WlanInfoCmd  =   (refCneWlanInfoCmdFmt *) pWifiCmdData;
+  RCNE_MSG_INFO("UWLICH: WLAN INFO data is:  rssi=%d, status=%d", WlanInfoCmd->rssi, WlanInfoCmd->status);
+  if (WlanInfoCmd->status == -10)
+  {
+    RCNE_MSG_ERROR("UWLICH: Invalid WLAN status received");
+    return(REF_CNE_RET_ERROR);
+  }
+  RCNE_MSG_DEBUG("UWLICH: WLAN info status is valid, will update status");
   RefCneWifi->UpdateStatus(WlanInfoCmd->status);
-  if ( (RefCneWifi->bIsDataConnected() 
+  RCNE_MSG_DEBUG("UWLICH: WLAN info status updated");
+  if ( (RefCneWifi->bIsDataConnected()
         && (RefCneWifi->iIsConActionPending()== REF_CNE_NET_PENDING_CONNECT) )
        || (!RefCneWifi->bIsDataConnected()
            && (RefCneWifi->iIsConActionPending()== REF_CNE_NET_PENDING_DISCONNECT) ) )
@@ -316,15 +328,23 @@ ref_cne_ret_enum_type CRefCne::UpdateWwanInfoCmd
 )
 {
   RCNE_MSG_DEBUG("UWWICH: Wwan update info cmd handler called");
-  refCneWwanInfoCmdFmt *WwanInfoCmd;
-  WwanInfoCmd  =   (refCneWwanInfoCmdFmt *)pWwanCmdData;
-  if (WwanInfoCmd->status == NULL)
+  if (pWwanCmdData == NULL)
   {
-    RCNE_MSG_ERROR("UWWICH: Invalid (==NULL) WWAN status received");
+    RCNE_MSG_ERROR("UWWICH: WWAN info data is null, bailing out...");
     return(REF_CNE_RET_ERROR);
   }
+  refCneWwanInfoCmdFmt *WwanInfoCmd;
+  WwanInfoCmd  =   (refCneWwanInfoCmdFmt *)pWwanCmdData;
+  RCNE_MSG_INFO("UWWICH: WWAN info data is: rssi=%d, status=%d", WwanInfoCmd->rssi, WwanInfoCmd->status);
+  if (WwanInfoCmd->status == -10)
+  {
+    RCNE_MSG_ERROR("UWWICH: Invalid WWAN status received");
+    return(REF_CNE_RET_ERROR);
+  }
+  RCNE_MSG_DEBUG("UWWICH: wwan status is valid, now updating status");
   RefCneWwan->UpdateStatus(WwanInfoCmd->status);
-  if ( (RefCneWwan->bIsDataConnected() 
+  RCNE_MSG_DEBUG("UWWICH: wwan status is updated");
+  if ( (RefCneWwan->bIsDataConnected()
         && (RefCneWwan->iIsConActionPending()== REF_CNE_NET_PENDING_CONNECT) )
        || (!RefCneWwan->bIsDataConnected()
            && (RefCneWwan->iIsConActionPending()== REF_CNE_NET_PENDING_DISCONNECT) ) )
@@ -338,7 +358,7 @@ ref_cne_ret_enum_type CRefCne::UpdateWwanInfoCmd
 /*----------------------------------------------------------------------------
  * FUNCTION      SetPrefNetCmd
 
- * DESCRIPTION   The command handler for set preferred network notification 
+ * DESCRIPTION   The command handler for set preferred network notification
 
  * DEPENDENCIES  None
 
@@ -352,6 +372,11 @@ ref_cne_ret_enum_type CRefCne::SetPrefNetCmd
 )
 {
   RCNE_MSG_DEBUG("SPNCH: Set preferred network command handler called");
+  if (pPrefNetCmdData == NULL)
+  {  
+    RCNE_MSG_ERROR("SPNCH: preferred network data is null, bailing out...");
+    return(REF_CNE_RET_ERROR);
+  }
   cne_rat_type *pPrefNetwork;
   pPrefNetwork = (cne_rat_type *)pPrefNetCmdData;
   if ( (*pPrefNetwork != CNE_RAT_WLAN)&&(*pPrefNetwork != CNE_RAT_WWAN) )
@@ -359,6 +384,7 @@ ref_cne_ret_enum_type CRefCne::SetPrefNetCmd
     RCNE_MSG_ERROR("SPNCH: Invalid Network ID [%d] received",*pPrefNetwork);
     return(REF_CNE_RET_ERROR);
   }
+  RCNE_MSG_INFO("SPNCH: setting preferred network to [%d]",*pPrefNetwork);
   SetPreferredNetwork(pPrefNetwork);
   RCNE_MSG_DEBUG("SPNCH: handled set preferred network cmd");
   return(REF_CNE_RET_OK);
@@ -366,7 +392,7 @@ ref_cne_ret_enum_type CRefCne::SetPrefNetCmd
 /*----------------------------------------------------------------------------
  * FUNCTION      SetPreferredNetwork
 
- * DESCRIPTION   Sets the desired network as the preferred network 
+ * DESCRIPTION   Sets the desired network as the preferred network
 
  * DEPENDENCIES  None
 
@@ -385,7 +411,7 @@ void CRefCne::SetPreferredNetwork
 /*----------------------------------------------------------------------------
  * FUNCTION      GetPreferredNetwork
 
- * DESCRIPTION   Informs the caller about which network is used as default 
+ * DESCRIPTION   Informs the caller about which network is used as default
 
  * DEPENDENCIES  None
 

@@ -4,10 +4,10 @@
 /**----------------------------------------------------------------------------
   @file REF_CNE.h
 
-  
+
 -----------------------------------------------------------------------------*/
 
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -40,7 +40,7 @@
  * Include Files
  * -------------------------------------------------------------------------*/
 
-#include "cne_svc.h"
+#include "cne.h"
 #include "RefCneDefs.h"
 #include "CRefCneRadio.h"
 
@@ -61,7 +61,7 @@ class CRefCne
 public:
   /**
     @brief Returns an instance of the CneSpm class.
-  
+
     The user of this class will call this function to get an
     instance of the class. All other public functions will be
     called  on this instance
@@ -71,9 +71,9 @@ public:
    @return  An instance of the CneSpm class is returned.
   */
   static CRefCne* getInstance ();
-  static void RefCneCmdHdlr 
+  static void RefCneCmdHdlr
     (
-    int , 
+    int ,
     int ,
     void*
     );
@@ -102,7 +102,7 @@ private:
   CRefCneRadio* RefCneWifi;
   CRefCneRadio* RefCneWwan;
 
- 
+
   ref_cne_ret_enum_type UpdateWlanInfoCmd
   (
     void*

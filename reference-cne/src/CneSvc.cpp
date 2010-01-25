@@ -14,7 +14,7 @@
                 the system belong here.
 ============================================================================*/
 
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -46,7 +46,7 @@
 /*----------------------------------------------------------------------------
  * Include Files
  * -------------------------------------------------------------------------*/
-#include "cne_svc.h"
+#include "cne.h"
 #include "CRefCne.h"
 #include "RefCneDefs.h"
 
@@ -65,7 +65,7 @@ extern void cnd_regCommandsNotificationCb
 (
   int,
   void (*)(int,int,void*),
-  int 
+  int
 );
 
 #ifdef __cplusplus
@@ -82,10 +82,68 @@ extern void cnd_regCommandsNotificationCb
 /*----------------------------------------------------------------------------
  * Static/Class member Function Declarations and Definitions
  * -------------------------------------------------------------------------*/
+static cne_messageCbType cnd_sendUnsolicitedMsg; 
 
 /*----------------------------------------------------------------------------
  * Externalized Function Definitions
  * -------------------------------------------------------------------------*/
+extern "C" void cne_init
+(
+  void
+)
+{
+}
+/*----------------------------------------------------------------------------
+ * FUNCTION      Function Name
+
+ * DESCRIPTION   Function Description
+
+ * DEPENDENCIES
+
+ * RETURN VALUE
+
+ * SIDE EFFECTS
+ *--------------------------------------------------------------------------*/
+extern "C" void
+cne_processCommand
+(
+  int cmd,
+  void *cmd_data,  /* event data depends on the type of event */
+  int cmd_len
+)
+{
+  //CRefCne::getInstance()->RefCneCmdHdlr(cmd, cmd_len, cmd_data);
+  CRefCne::RefCneCmdHdlr(cmd, cmd_len, cmd_data);
+  return;
+}
+/*----------------------------------------------------------------------------
+ * FUNCTION      Function Name
+
+ * DESCRIPTION   Function Description
+
+ * DEPENDENCIES  
+
+ * RETURN VALUE  
+
+ * SIDE EFFECTS  
+ *--------------------------------------------------------------------------*/
+extern "C" void cne_sendUnsolicitedMsg
+(
+  int targetFd, 
+  int msgType, 
+  int dataLen, 
+  void *data
+)
+{
+
+  RCNE_MSG_ERROR("cne_sendUnsolicitedMsg called");
+  cnd_sendUnsolicitedMsg(targetFd,
+                         msgType,
+                         dataLen,
+                         data);
+
+  RCNE_MSG_ERROR("cne_sendUnsolicitedMsg called GOT");
+}
 /*----------------------------------------------------------------------------
  * FUNCTION      Function Name
 
@@ -98,28 +156,24 @@ extern void cnd_regCommandsNotificationCb
  * SIDE EFFECTS  
  *--------------------------------------------------------------------------*/
 extern "C" void 
-cne_processCommand
+cne_regMessageCb
 (
-  int cmd,
-  int cmd_len,
-  void *cmd_data  /* event data depends on the type of event */
+  cne_messageCbType cbFn
 )
 {
-  //CRefCne::getInstance()->RefCneCmdHdlr(cmd, cmd_len, cmd_data);
-  CRefCne::RefCneCmdHdlr(cmd, cmd_len, cmd_data);
+  cnd_sendUnsolicitedMsg = cbFn;
   return;
 }
-
 /*----------------------------------------------------------------------------
  * FUNCTION      Function Name
 
  * DESCRIPTION   Function Description
 
- * DEPENDENCIES  
+ * DEPENDENCIES
 
- * RETURN VALUE  
+ * RETURN VALUE
 
- * SIDE EFFECTS  
+ * SIDE EFFECTS
  *--------------------------------------------------------------------------*/
 void cne_svc_init
 (
@@ -127,6 +181,7 @@ void cne_svc_init
 )
 {
   /* create the RefCne obj */
+  RCNE_MSG_DEBUG("Reference CNE init called");
   (void) CRefCne::getInstance();
 }
 

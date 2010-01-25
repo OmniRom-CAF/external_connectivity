@@ -1,6 +1,6 @@
-/* 
+/*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -46,8 +46,9 @@
 #include <cutils/properties.h>
 #include <dirent.h>
 #include <cnd_event.h>
-#include <cnd.h>	
-#include <cne_svc.h>
+#include <cnd.h>
+#include <cne.h>
+#include <cnd_iproute2.h>
 
 
 
@@ -82,7 +83,7 @@ typedef struct {
 } UnsolMessageInfo;
 
 typedef struct RequestInfo {
-    int32_t token;      //this is not CND_Token 
+    int32_t token;      //this is not CND_Token
     int fd;
     CommandInfo *pCI;
     struct RequestInfo *p_next;
@@ -128,8 +129,10 @@ static void dispatchString (Parcel& p, RequestInfo *pRI);
 static void dispatchStrings (Parcel& p, RequestInfo *pRI);
 static void dispatchInts (Parcel& p, RequestInfo *pRI);
 static void dispatchWlanInfo(Parcel &p, RequestInfo *pRI);
+static void dispatchWwanInfo(Parcel &p, RequestInfo *pRI);
 static void dispatchWlanScanResults(Parcel &p, RequestInfo *pRI);
 static void dispatchRaw(Parcel& p, RequestInfo *pRI);
+static void dispatchRatStatus(Parcel &p, RequestInfo *pRI);
 static int responseInts(Parcel &p, void *response, size_t responselen);
 static int responseStrings(Parcel &p, void *response, size_t responselen);
 static int responseString(Parcel &p, void *response, size_t responselen);
@@ -138,6 +141,8 @@ static int responseRaw(Parcel &p, void *response, size_t responselen);
 static int responseStartTrans(Parcel &p, void *response, size_t responselen);
 static int sendResponseRaw (const void *data, size_t dataSize, int fdCommand);
 static int sendResponse (Parcel &p, int fd);
+static int rspCompatibleNws(Parcel &p, void *response, size_t responselen);
+static int evtMorePrefNw(Parcel &p, void *response, size_t responselen);
 static int eventRatChange (Parcel &p, void *response, size_t responselen);
 static char *strdupReadString(Parcel &p);
 static void writeStringToParcel(Parcel &p, const char *s);
@@ -172,15 +177,15 @@ static UnsolMessageInfo s_unsolMessages[] = {
 
 void cnd_sendUnsolicitedMsg(int targetFd, int msgType, int dataLen, void *data)
 {
-  int fd;	
-  
-  if (targetFd == 0)   // TODO find the correct fd, who keeps track of it? 
+  int fd;
+
+  if (targetFd == 0)   // TODO find the correct fd, who keeps track of it?
 	fd = cnmSvcFd;
   else
-	fd = targetFd; 
+	fd = targetFd;
 
-  LOGD ("cnd_sendUnsolicitedMsg: Fd=%d, msgType=%d, datalen=%d\n", 
-        targetFd, msgType, dataLen);  
+  LOGD ("cnd_sendUnsolicitedMsg: Fd=%d, msgType=%d, datalen=%d\n",
+        targetFd, msgType, dataLen);
 
   unsolicitedMessage(msgType, data, dataLen, fd);
 
@@ -191,19 +196,35 @@ static void
 processCommand (int command, void *data, size_t datalen, CND_Token t)
 {
 
-  LOGD ("processCommand: command=%d, datalen=%d", command, datalen);    
+  LOGD ("processCommand: command=%d, datalen=%d", command, datalen);
 
   /* Special handling for iproute2 command to setup iproute2 table */
-  if (command == CNE_REQUEST_CONFIG_IPROUTE2_CMD) 
+  if (command == CNE_REQUEST_CONFIG_IPROUTE2_CMD)
   {
-    char **pStrings;
-    *pStrings = (char *)data;
-    LOGD ("processCommand: str1=%s, str2=%s", pStrings[0], pStrings[1]);    
+    unsigned char *ipAddr = NULL;
+    unsigned char *gatewayAddr = NULL;
+    unsigned char *ifName = NULL;
+
+
+    ifName = ((unsigned char **)data)[0];
+    ipAddr = ((unsigned char **)data)[1];
+    gatewayAddr = ((unsigned char **)data)[2];
+ 
+    LOGD ("processCommand: ipAddr=%s, gatewayAddr=%s, ifName=%s", ipAddr, gatewayAddr, ifName);
+
     // Call iproute2 API
-        
+    if(ipAddr != NULL)
+      cnd_iproute2::getInstance()->addRoutingTable(ifName, ipAddr, gatewayAddr); 
+    else
+      cnd_iproute2::getInstance()->deleteRoutingTable(ifName); 
+
+    return;
+
   }
+
   cne_processCommand(command, data, datalen);
   cnd_commandComplete(t, CND_E_SUCCESS, NULL, 0);
+  return;
 }
 
 static char *
@@ -211,9 +232,9 @@ strdupReadString(Parcel &p)
 {
     size_t stringlen;
     const char16_t *s16;
-            
+
     s16 = p.readString16Inplace(&stringlen);
-    
+
     return strndup16to8(s16, stringlen);
 }
 
@@ -239,12 +260,12 @@ memsetString (char *s)
 static void
 invalidCommandBlock (RequestInfo *pRI)
 {
-    //LOGE("invalid command block for token %d request %s", 
+    //LOGE("invalid command block for token %d request %s",
     //            pRI->token, requestToString(pRI->pCI->commandNumber));
 }
 
 /** Callee expects NULL */
-static void 
+static void
 dispatchVoid (Parcel& p, RequestInfo *pRI)
 {
 
@@ -298,12 +319,12 @@ dispatchStrings (Parcel &p, RequestInfo *pRI)
         datalen = 0;
     } else {
         datalen = sizeof(char *) * countStrings;
-    
+
         pStrings = (char **)alloca(datalen);
 
         for (int i = 0 ; i < countStrings ; i++) {
             pStrings[i] = strdupReadString(p);
-           
+
         }
     }
 
@@ -321,7 +342,7 @@ dispatchStrings (Parcel &p, RequestInfo *pRI)
         memset(pStrings, 0, datalen);
 #endif
     }
-    
+
     return;
 invalid:
     invalidCommandBlock(pRI);
@@ -338,7 +359,7 @@ dispatchInts (Parcel &p, RequestInfo *pRI)
     int *pInts;
 
     status = p.readInt32 (&count);
-    
+
     LOGD ("dispatchInts: status=%d, count=%d", status, count);
 
     if (status != NO_ERROR || count == 0) {
@@ -348,20 +369,20 @@ dispatchInts (Parcel &p, RequestInfo *pRI)
     datalen = sizeof(int) * count;
     pInts = (int *)alloca(datalen);
 
-  
+
     for (int i = 0 ; i < count ; i++) {
         int32_t t;
 
         status = p.readInt32(&t);
         pInts[i] = (int)t;
-     
+
 
         if (status != NO_ERROR) {
             goto invalid;
         }
    }
 
-   processCommand(pRI->pCI->commandNumber, const_cast<int *>(pInts), 
+   processCommand(pRI->pCI->commandNumber, const_cast<int *>(pInts),
                        datalen, pRI);
 
 #ifdef MEMSET_FREED
@@ -389,11 +410,13 @@ dispatchWlanInfo(Parcel &p, RequestInfo *pRI)
     status = p.readInt32 (&t);
     args.rssi = (int)t;
     args.ssid = strdupReadString(p);
-    
-    LOGD ("dispatchWlanInfo: status=%ld, rssi=%ld, ssid=%s",
-          args.status, args.rssi, args.ssid);
-    
- 
+    args.ipAddr = strdupReadString(p);
+    args.timeStamp = strdupReadString(p);
+
+    LOGD ("dispatchWlanInfo: state=%ld, rssi=%ld, ssid=%s, ipAddr=%s, timeStamp=%s",
+          args.status, args.rssi, args.ssid, args.ipAddr, args.timeStamp);
+
+
     processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
 
     return;
@@ -412,7 +435,7 @@ dispatchWlanScanResults(Parcel &p, RequestInfo *pRI)
     args.numItems = (int)t;
     int max = (t < CNE_MAX_SCANLIST_SIZE)? t:CNE_MAX_SCANLIST_SIZE;
 
-    for (int i = 0; i < max; i++) 
+    for (int i = 0; i < max; i++)
     {
         //args->numItems = numItems;
         status = p.readInt32 (&t);
@@ -423,19 +446,72 @@ dispatchWlanScanResults(Parcel &p, RequestInfo *pRI)
         args.scanList[i].bssid = strdupReadString(p);
         args.scanList[i].capabilities = strdupReadString(p);
 
-        LOGD ("dispatchWlanScanResults: max=%d, level=%ld, freq=%ld, ssid=%s, bssid=%s, cap=%s", 
-              args.numItems, args.scanList[i].level, args.scanList[i].frequency, 
+        LOGD ("dispatchWlanScanResults: max=%d, level=%ld, freq=%ld, ssid=%s, bssid=%s, cap=%s",
+              args.numItems, args.scanList[i].level, args.scanList[i].frequency,
               args.scanList[i].ssid, args.scanList[i].bssid, args.scanList[i].capabilities);
 
     }
 
- 
+
     processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
 
     return;
 }
 
-static void 
+static void
+dispatchWwanInfo(Parcel &p, RequestInfo *pRI)
+{
+    int32_t t;
+    status_t status;
+    CneWwanInfoType args;
+
+    memset(&args, 0, sizeof(args));
+
+    status = p.readInt32 (&t);
+    args.type = (int)t;
+    status = p.readInt32 (&t);
+    args.status = (int)t;
+    status = p.readInt32 (&t);
+    args.rssi = (int)t;
+    status = p.readInt32 (&t);
+    args.roaming = (int)t;
+    args.ipAddr = strdupReadString(p);
+    args.timeStamp = strdupReadString(p);
+
+    LOGD ("dispatchWwanInfo: type=%ld, state=%ld, rssi=%ld, roaming=%ld, ipAddr=%s, timeStamp=%s",
+          args.type, args.status, args.rssi, args.roaming, args.ipAddr, args.timeStamp);
+
+
+    processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
+
+    return;
+}
+
+static void
+dispatchRatStatus(Parcel &p, RequestInfo *pRI)
+{
+    int32_t t;
+    status_t status;
+    CneRatStatusType args;
+
+    memset(&args, 0, sizeof(args));
+
+    status = p.readInt32 (&t);
+    args.rat = (cne_rat_type)t;
+    status = p.readInt32 (&t);
+    args.ratStatus = (cne_network_state_enum_type)t;
+    args.ipAddr = strdupReadString(p);
+
+    LOGD ("dispatchRatStatus: type=%ld, ratStatus=%ld, ipAddr=%s",
+          args.rat, args.ratStatus, args.ipAddr);
+
+
+    processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
+
+    return;
+}
+
+static void
 dispatchRaw(Parcel &p, RequestInfo *pRI)
 {
     int32_t len;
@@ -452,7 +528,7 @@ dispatchRaw(Parcel &p, RequestInfo *pRI)
     if (((int)len) == -1) {
         data = NULL;
         len = 0;
-    } 
+    }
 
     data = p.readInplace(len);
 
@@ -467,7 +543,7 @@ invalid:
 static int
 writeData(int fd, const void *buffer, size_t len)
 {
-    size_t writeOffset = 0; 
+    size_t writeOffset = 0;
     const uint8_t *toWrite;
 
     toWrite = (const uint8_t *)buffer;
@@ -511,7 +587,7 @@ sendResponseRaw (const void *data, size_t dataSize, int fdCommand)
 
         return -1;
     }
-    
+
     pthread_mutex_lock(&s_writeMutex);
 
     header = htonl(dataSize);
@@ -537,11 +613,11 @@ sendResponseRaw (const void *data, size_t dataSize, int fdCommand)
 static int
 sendResponse (Parcel &p, int fd)
 {
-   
+
     return sendResponseRaw(p.data(), p.dataSize(), fd);
 }
 
-static int 
+static int
 responseStartTrans(Parcel &p, void *response, size_t responselen)
 {
     int numInts;
@@ -553,7 +629,7 @@ responseStartTrans(Parcel &p, void *response, size_t responselen)
         LOGE("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
-  
+
 
     int *p_int = (int *) response;
     //bool tmp = p_int[1];
@@ -565,14 +641,14 @@ responseStartTrans(Parcel &p, void *response, size_t responselen)
 
     //p.write(&tmp, 1);
 
-    LOGD ("responseStartTrans: int=%d, bool=%d",p_int[0], p_char[4]);   
+    LOGD ("responseStartTrans: int=%d, bool=%d",p_int[0], p_char[4]);
 
     return 0;
 }
 
 /** response is an int* pointing to an array of ints*/
- 
-static int 
+
+static int
 responseInts(Parcel &p, void *response, size_t responselen)
 {
     int numInts;
@@ -585,7 +661,7 @@ responseInts(Parcel &p, void *response, size_t responselen)
         return CND_E_INVALID_RESPONSE;
     }
     if (responselen % sizeof(int) != 0) {
-        LOGE("invalid response length %d expected multiple of %d\n", 
+        LOGE("invalid response length %d expected multiple of %d\n",
             (int)responselen, (int)sizeof(int));
         return CND_E_INVALID_RESPONSE;
     }
@@ -596,9 +672,9 @@ responseInts(Parcel &p, void *response, size_t responselen)
     p.writeInt32 (numInts);
 
     /* each int*/
-  
+
     for (int i = 0 ; i < numInts ; i++) {
-      
+
         p.writeInt32(p_int[i]);
     }
 
@@ -611,13 +687,13 @@ responseInts(Parcel &p, void *response, size_t responselen)
 static int responseStrings(Parcel &p, void *response, size_t responselen)
 {
     int numStrings;
-    
+
     if (response == NULL && responselen != 0) {
         LOGE("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
     if (responselen % sizeof(char *) != 0) {
-        LOGE("invalid response length %d expected multiple of %d\n", 
+        LOGE("invalid response length %d expected multiple of %d\n",
             (int)responselen, (int)sizeof(char *));
         return CND_E_INVALID_RESPONSE;
     }
@@ -631,26 +707,26 @@ static int responseStrings(Parcel &p, void *response, size_t responselen)
         p.writeInt32 (numStrings);
 
         /* each string*/
-     
+
         for (int i = 0 ; i < numStrings ; i++) {
-    
+
             writeStringToParcel (p, p_cur[i]);
         }
-  
-     
+
+
     }
     return 0;
 }
 
 
 /**
- * NULL strings are accepted 
+ * NULL strings are accepted
  * FIXME currently ignores responselen
  */
 static int responseString(Parcel &p, void *response, size_t responselen)
 {
 
-    LOGD ("responseString called"); 
+    LOGD ("responseString called");
    /* one string only */
     writeStringToParcel(p, (const char *)response);
 
@@ -671,7 +747,7 @@ static int responseRaw(Parcel &p, void *response, size_t responselen)
 
     // The java code reads -1 size as null byte array
     if (response == NULL) {
-        p.writeInt32(-1);       
+        p.writeInt32(-1);
     } else {
         p.writeInt32(responselen);
         p.write(response, responselen);
@@ -680,9 +756,53 @@ static int responseRaw(Parcel &p, void *response, size_t responselen)
     return 0;
 }
 
+
+static int rspCompatibleNws(Parcel &p, void *response, size_t responselen)
+{
+    if (response == NULL && responselen != 0)
+    {
+        LOGE("invalid response: NULL");
+        return CND_E_INVALID_RESPONSE;
+    }
+
+    cne_get_compatible_nws_evt_rsp_data_type *p_cur =
+      ((cne_get_compatible_nws_evt_rsp_data_type *) response);
+
+    p.writeInt32((int)p_cur->reg_id);
+    p.writeInt32((int)p_cur->is_success);
+    p.writeInt32((int)p_cur->best_rat);
+    for(int index = 0; index<CNE_RAT_MAX; index++)
+    {
+      p.writeInt32((int)p_cur->rat_pref_order[index]);
+    }
+    writeStringToParcel(p,p_cur->ip_addr);
+    p.writeInt32((int)p_cur->fl_bw_est);
+    p.writeInt32((int)p_cur->rl_bw_est);
+    return 0;
+}
+
+static int evtMorePrefNw(Parcel &p, void *response, size_t responselen)
+{
+    if (response == NULL && responselen != 0)
+    {
+        LOGE("invalid response: NULL");
+        return CND_E_INVALID_RESPONSE;
+    }
+
+    cne_pref_rat_avail_evt_data_type *p_cur =
+      ((cne_pref_rat_avail_evt_data_type *) response);
+
+    p.writeInt32((int)p_cur->reg_id);
+    p.writeInt32((int)p_cur->rat);
+    writeStringToParcel(p,p_cur->ip_addr);
+    p.writeInt32((int)p_cur->fl_bw_est);
+    p.writeInt32((int)p_cur->rl_bw_est);
+    return 0;
+}
+
 static int eventRatChange(Parcel &p, void *response, size_t responselen)
 {
-    if (response == NULL && responselen != 0) 
+    if (response == NULL && responselen != 0)
     {
         LOGE("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
@@ -711,15 +831,15 @@ static int
 checkAndDequeueRequestInfo(struct RequestInfo *pRI)
 {
     int ret = 0;
-    
+
     if (pRI == NULL) {
         return 0;
     }
 
     pthread_mutex_lock(&s_pendingRequestsMutex);
 
-    for(RequestInfo **ppCur = &s_pendingRequests 
-        ; *ppCur != NULL 
+    for(RequestInfo **ppCur = &s_pendingRequests
+        ; *ppCur != NULL
         ; ppCur = &((*ppCur)->p_next)
     ) {
         if (pRI == *ppCur) {
@@ -747,7 +867,7 @@ static void onCommandsSocketClosed()
 
     p_cur = s_pendingRequests;
 
-    for (p_cur = s_pendingRequests 
+    for (p_cur = s_pendingRequests
             ; p_cur != NULL
             ; p_cur  = p_cur->p_next
     ) {
@@ -768,7 +888,7 @@ static void unsolicitedMessage(int unsolMessage, void *data, size_t datalen, int
         LOGW("unsolicitedMessage called before cnd_init");
         return;
     }
-      
+
     Parcel p;
 
     p.writeInt32 (UNSOLICITED_MESSAGE);
@@ -776,7 +896,7 @@ static void unsolicitedMessage(int unsolMessage, void *data, size_t datalen, int
 
     ret = s_unsolMessages[unsolMessage]
                 .responseFunction(p, data, datalen);
-  
+
     if (ret != 0) {
         // Problem with the response. Don't continue;
         LOGE("unsolicitedMessage: problem with response");
@@ -785,7 +905,7 @@ static void unsolicitedMessage(int unsolMessage, void *data, size_t datalen, int
 
     LOGD ("unsolicitedMessage: sending Response");
     ret = sendResponse(p, fd);
-    
+
     return;
 
 }
@@ -834,7 +954,7 @@ processCommandBuffer(void *buffer, size_t buflen, int fd)
     ret = pthread_mutex_unlock(&s_pendingRequestsMutex);
     assert (ret == 0);
 
-    pRI->pCI->dispatchFunction(p, pRI);    
+    pRI->pCI->dispatchFunction(p, pRI);
 
     return 0;
 }
@@ -847,10 +967,10 @@ static void processCommandsCallback(int fd, void *param)
     int ret;
 
     LOGD ("processCommandsCallback: fd=%d, s_fdCommand=%d", fd, s_fdCommand);
-  
+
     p_rs = (RecordStream *)param;
 
-   
+
     for (;;) {
         /* loop until EAGAIN/EINTR, end of stream, or other error */
         ret = record_stream_get_next(p_rs, &p_record, &recordlen);
@@ -864,7 +984,7 @@ static void processCommandsCallback(int fd, void *param)
             break;
         } else if (ret == 0) { /* && p_record != NULL */
             processCommandBuffer(p_record, recordlen, fd);
-	   
+
         }
     }
 
@@ -876,7 +996,7 @@ static void processCommandsCallback(int fd, void *param)
         } else {
             LOGW("EOS.  Closing command socket.");
         }
-        
+
         LOGD ("processCommandsCallback: Closing");
         close(s_fdCommand);
         s_fdCommand = -1;
@@ -910,19 +1030,19 @@ static void listenCallback (int fd, void *param)
 
     struct ucred creds;
     socklen_t szCreds = sizeof(creds);
-  
+
 
     struct passwd *pwd = NULL;
 
     assert (s_fdCommand < 0);
     assert (fd == s_fdListen);
-    
+
     LOGD ("listenCallback: called");
- 
-     
+
+
     s_fdCommand = accept(s_fdListen, (sockaddr *) &peeraddr, &socklen);
 
- 
+
     if (s_fdCommand < 0 ) {
       LOGE("Error on accept() errno:%d", errno);
       /* start listening for new connections again */
@@ -931,7 +1051,7 @@ static void listenCallback (int fd, void *param)
     }
 
     errno = 0;
-      
+
     err = getsockopt(s_fdCommand, SOL_SOCKET, SO_PEERCRED, &creds, &szCreds);
 
  	cnmSvcFd = s_fdCommand; // save command descriptor to be used for communication
@@ -943,10 +1063,10 @@ static void listenCallback (int fd, void *param)
     }
 
     LOGI("listenCallback: accept new connection, fd=%d", s_fdCommand);
-    
+
     p_rs = record_stream_new(s_fdCommand, MAX_COMMAND_BYTES);
-    
- 
+
+
     // note: persistent = 1, not removed from table
     if (command_index >= MAX_FD_EVENTS)
     {
@@ -956,9 +1076,9 @@ static void listenCallback (int fd, void *param)
     cnd_event_set (&s_commands_event[command_index], s_fdCommand, 1, processCommandsCallback, p_rs);
 
     cnd_event_add (&s_commands_event[command_index]);
- 
+
     command_index++;
-   
+
     return;
 
 }
@@ -978,33 +1098,33 @@ eventLoop(void *param)
     pthread_cond_broadcast(&s_startupCond);
 
     pthread_mutex_unlock(&s_startupMutex);
-   
+
     cnd_event_loop();
-     
+
 
     return NULL;
 }
 
-extern "C" void 
+extern "C" void
 cnd_startEventLoop(void)
 {
     int ret;
     pthread_attr_t attr;
-    
+
     /* spin up eventLoop thread and wait for it to get started */
     s_started = 0;
     pthread_mutex_lock(&s_startupMutex);
 
     pthread_attr_init (&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);    
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     ret = pthread_create(&s_tid_dispatch, &attr, eventLoop, NULL);
 
- 
+
     while (s_started == 0) {
         pthread_cond_wait(&s_startupCond, &s_startupMutex);
     }
-    
- 
+
+
     pthread_mutex_unlock(&s_startupMutex);
 
     if (ret < 0) {
@@ -1013,7 +1133,7 @@ cnd_startEventLoop(void)
     }
 }
 
-extern "C" void 
+extern "C" void
 cnd_init (void)
 {
     int ret;
@@ -1023,10 +1143,10 @@ cnd_init (void)
                 "Subsequent call ignored");
         return;
     }
-   
+
     s_registerCalled = 1;
 
-    cnd_event_init();	
+    cnd_event_init();
 
     cne_regMessageCb(cnd_sendUnsolicitedMsg);
 
@@ -1050,17 +1170,17 @@ cnd_init (void)
 
     /* note: non-persistent to accept only one connection at a time */
     //cnd_event_set (&s_listen_event, s_fdListen, 0, listenCallback, NULL);
-    
+
     // persistent to accept multiple connections at same time
     cnd_event_set (&s_listen_event, s_fdListen, 1, listenCallback, NULL);
 
     cnd_event_add (&s_listen_event);
 
-   
+
 }
 
 
-//extern "C" void - TBD -may want to change this function to extern "C" and 
+//extern "C" void - TBD -may want to change this function to extern "C" and
 // be called from CneCet where Cne components (SRM/SPM/CDE) may send the
 // response to Cne java
 static void
@@ -1083,7 +1203,7 @@ cnd_commandComplete(CND_Token t, CND_Errno e, void *response, size_t responselen
          goto done;
     }
 
-   
+
     if (pRI->cancelled == 0) {
         Parcel p;
 

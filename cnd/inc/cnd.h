@@ -1,6 +1,6 @@
-/* 
+/*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
-#ifndef CND_H 
-#define CND_H 
+#ifndef CND_H
+#define CND_H
 
 #include <stdlib.h>
 #include <sys/time.h>
-#include "cne_svc.h"
+#include "cne.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +33,7 @@ typedef enum {
     CND_E_RADIO_NOT_AVAILABLE = 1,     /* If radio did not start or is resetting */
     CND_E_GENERIC_FAILURE = 2,
     CND_E_INVALID_RESPONSE
-  
+
 } CND_Errno;
 
 

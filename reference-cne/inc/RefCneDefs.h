@@ -3,13 +3,13 @@
 
 /**----------------------------------------------------------------------------
   @file REFCNE_Defs.h
- 
-  This file holds various definations that get used across, different CNE 
+
+  This file holds various definations that get used across, different CNE
   modules.
 -----------------------------------------------------------------------------*/
 
 
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:

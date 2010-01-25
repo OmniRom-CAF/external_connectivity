@@ -19,7 +19,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libcutils \
         libhardware_legacy \
-        libcne
+        librefcne
 
 LOCAL_C_INCLUDES := \
         external/connectivity/cnd/inc  \

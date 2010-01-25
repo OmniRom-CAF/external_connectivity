@@ -1,4 +1,4 @@
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,14 +31,14 @@
 
 /**----------------------------------------------------------------------------
   @file cnd_iproute2.h
- 
+
         cnd_iproute2 is an interface to make the necessary calls to iproute2
         in order to set up and take down routing tables. Defines APIS so that
         a routing table associated with a RAT can be added or deleted. Also
         allows the user to change the default routing table when a given
         source address is not already associated with a RAT.
 -----------------------------------------------------------------------------*/
-         
+
 
 /*----------------------------------------------------------------------------
  * Include Files
@@ -62,11 +62,11 @@ class cnd_iproute2
   public:
     /**
     * @brief Returns an instance of the Cnd_iproute2 class.
-    
+
       The user of this class will call this function to get an
       instance of the class. All other public functions will be
       called on this instance
-  
+
     * @param   None
     * @see     None
     * @return  An instance of the Cnd_iproute2 class is returned.
@@ -78,17 +78,17 @@ class cnd_iproute2
 
     /**
     * @brief Create a routing table for a RAT using iproute2
-    * 
+    *
     * The user of this function passes in the name of the RAT that
     * matches the name already defined in the Android system. The
-    * user also needs to locate the gateway address and source 
-    * prefix assocated with that RAT device. If a table is added 
-    * when no another tables exist, it will automatically become the 
-    * default table. 
-    *  
-    * @param deviceName       The name of the device whose table 
+    * user also needs to locate the gateway address and source
+    * prefix assocated with that RAT device. If a table is added
+    * when no another tables exist, it will automatically become the
+    * default table.
+    *
+    * @param deviceName       The name of the device whose table
     *                         will be added (Such as wlan or wwan)
-    * @param sourcePrefix     The source network prefix or address 
+    * @param sourcePrefix     The source network prefix or address
     *                         that will be routed to the device
     *                         (Such as 37.214.21/24 or 10.156.45.1)
     * @param gatewayAddress   The gateway address of the device.
@@ -103,15 +103,15 @@ class cnd_iproute2
     );
 
     /**
-    * @brief Change the default routing table that is associated 
+    * @brief Change the default routing table that is associated
     *        with any source addresses not bound to another table.
-    * 
+    *
     * The user of this function passes in the name of the RAT that
-    * matches the name already defined in the Android system. That 
-    * device will become the new default. If this RAT is already the 
-    * default, this function simply returns true. 
-    *  
-    * @param deviceName       The name of the device whose table 
+    * matches the name already defined in the Android system. That
+    * device will become the new default. If this RAT is already the
+    * default, this function simply returns true.
+    *
+    * @param deviceName       The name of the device whose table
     *                         will be added (Such as wlan or wwan)
     * @return                 True if function is successful. False
     *                         otherwise.
@@ -121,7 +121,7 @@ class cnd_iproute2
       uint8_t *deviceName
     );
 
-    /** 
+    /**
     *  @brief Deletes a routing table from the system along with the
     *         rule corresponding to that table.
     *
@@ -135,19 +135,19 @@ class cnd_iproute2
       uint8_t *deviceName
     );
 
-    /** 
+    /**
     *  Displays the contents of all routing tables for debugging
     *  purposes.
-    *  
+    *
     *  @return                 True if function is successful. False
     *                          otherwise.
     */
-    bool showAllRoutingTables 
+    bool showAllRoutingTables
     (
       void
     );
 
-    /** 
+    /**
     *  Displays the contents of the routing table associated with
     *  the inputted device name.
     *
@@ -161,10 +161,10 @@ class cnd_iproute2
       uint8_t *deviceName
     );
 
-    /** 
+    /**
     *  Displays the rules associated with all tables for debugging
     *  purposes.
-    *  
+    *
     *  @return                 True if function is successful. False
     *                          otherwise.
     */
@@ -179,8 +179,8 @@ class cnd_iproute2
     /* destructor */
     ~cnd_iproute2(){};
 
-    static cnd_iproute2* instancePtr;   
-};      
+    static cnd_iproute2* instancePtr;
+};
 
 
 #endif /* CND_IPROUTE2_H*/

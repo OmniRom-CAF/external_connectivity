@@ -1,17 +1,17 @@
 /*============================================================================
   FILE:         CRefCneRadio.cpp
 
-  OVERVIEW:     The CRefCneRadio class provides means to control an air 
+  OVERVIEW:     The CRefCneRadio class provides means to control an air
                 interface upon creation of its object. Some of the methods
                 such as bIsDataConnected, bIsConStateChanged, provide means to
                 find out the current connectivity state of the radio
-                
+
   DEPENDENCIES: The CRefCneRadio class is constructed for a unique air interface
                 denoted by its RAT type. Once constructed, all other methods
                 can be called on this object.
 ============================================================================*/
 
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -43,11 +43,11 @@
 /*---------------------------------------------------------------------------
  * Extern Declarations
  *-------------------------------------------------------------------------*/
-extern "C" void cnd_sendUnsolicitedMsg
+extern "C" void cne_sendUnsolicitedMsg
   (
-  int targetFd, 
-  int msgType, 
-  int dataLen, 
+  int targetFd,
+  int msgType,
+  int dataLen,
   void *data
   );
 
@@ -56,7 +56,7 @@ extern "C" void cnd_sendUnsolicitedMsg
  * -------------------------------------------------------------------------*/
 #include "CRefCneRadio.h"
 #include "RefCneDefs.h"
-#include "cne_svc.h"
+#include "cne.h"
 
 /*=============================================================================
   FUNCTION      CRefCneRadio
@@ -76,13 +76,13 @@ CRefCneRadio::CRefCneRadio
   m_iNetConState(REF_CNE_NET_STATE_UNINITIALIZED),
   m_iPrevNetConState(REF_CNE_NET_STATE_UNINITIALIZED)
 {
-  //Print to logcat: RefCne Radio constructor called
+  RCNE_MSG_DEBUG("In RefCneRadio constructor");
   /* set the command handlers */
 
   m_iMyRatType = myRadio;
 
-  //Print to logcat: RefCne Radio constructed
-}         
+  RCNE_MSG_DEBUG("RefCneRadio constructed for RAT: %d",m_iMyRatType);
+}
 /*=============================================================================
   FUNCTION      CRefCneRadio
 
@@ -147,7 +147,7 @@ int CRefCneRadio::iIsConActionPending
 
   SIDE EFFECTS  None
  ============================================================================*/
-void CRefCneRadio::ClearPending 
+void CRefCneRadio::ClearPending
 (
 )
 {
@@ -201,13 +201,16 @@ void CRefCneRadio::UpdateStatus
     case CNE_NETWORK_STATE_CONNECTED:
       {
         m_iNetConState = REF_CNE_NET_STATE_CONNECTED;
-        break;
+		RCNE_MSG_DEBUG("refcne %d radio state is connected",m_iMyRatType);
       }
+	  break;
     default:
       {
         m_iNetConState = REF_CNE_NET_STATE_DISCONNECTED;
+		RCNE_MSG_DEBUG("refcne %d radio state is disconnected",m_iMyRatType);
       }
   }
+  
   return;
 }
 /*=============================================================================
@@ -226,8 +229,10 @@ void CRefCneRadio::TurnOn
 )
 {
   //Send Turn On command to Connectivity daemon
-  cnd_sendUnsolicitedMsg
-    (0, CNE_REQUEST_BRING_RAT_UP_MSG, sizeof(m_iMyRatType), &m_iMyRatType); 
+  RCNE_MSG_DEBUG("requesting service to turn on radio with params: cmd %d, sz %d, radio %d",
+				 CNE_REQUEST_BRING_RAT_UP_MSG,(sizeof(m_iMyRatType)),m_iMyRatType);
+  cne_sendUnsolicitedMsg
+    (0, CNE_REQUEST_BRING_RAT_UP_MSG, sizeof(m_iMyRatType), &m_iMyRatType);
   return;
 }
 /*=============================================================================
@@ -246,14 +251,16 @@ void CRefCneRadio::TurnOff
 )
 {
   //Send Turn Off command to Connectivity daemon
-  cnd_sendUnsolicitedMsg
-    (0, CNE_REQUEST_BRING_RAT_DOWN_MSG, sizeof(m_iMyRatType), &m_iMyRatType); 
+  RCNE_MSG_DEBUG("requesting service to turn off radio with params: cmd %d, sz %d, radio %d",
+				 CNE_REQUEST_BRING_RAT_DOWN_MSG,(sizeof(m_iMyRatType)),m_iMyRatType);
+  cne_sendUnsolicitedMsg
+    (0, CNE_REQUEST_BRING_RAT_DOWN_MSG, sizeof(m_iMyRatType), &m_iMyRatType);
   return;
 }
 /*=============================================================================
   FUNCTION      SetPending
 
-  DESCRIPTION   Sets the pending flag appropriately when radio is turned on 
+  DESCRIPTION   Sets the pending flag appropriately when radio is turned on
                 or off
 
   DEPENDENCIES  None
@@ -262,7 +269,7 @@ void CRefCneRadio::TurnOff
 
   SIDE EFFECTS  None
  ============================================================================*/
-void CRefCneRadio::SetPending 
+void CRefCneRadio::SetPending
 (
   ref_cne_net_con_req_enum_type flag
 )
@@ -276,5 +283,3 @@ CRefCneRadio::CRefCneRadio
 )
 {
 }
-
-

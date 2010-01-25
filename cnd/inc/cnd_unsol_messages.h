@@ -1,6 +1,6 @@
-/* 
+/*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -17,13 +17,13 @@
 
     {0, NULL},                   //none
     {CNE_RESPONSE_REG_ROLE_MSG, responseInts},
-    {CNE_RESPONSE_GET_COMPATIBLE_NWS_MSG, responseInts},
+    {CNE_RESPONSE_GET_COMPATIBLE_NWS_MSG, rspCompatibleNws},
     {CNE_RESPONSE_CONFIRM_NW_MSG, responseInts},
     {CNE_RESPONSE_DEREG_ROLE_MSG, responseInts},
     {CNE_REQUEST_BRING_RAT_DOWN_MSG, eventRatChange},
     {CNE_REQUEST_BRING_RAT_UP_MSG, eventRatChange},
-    {CNE_NOTIFY_MORE_PREFERED_RAT_AVAIL_MSG, responseInts},
+    {CNE_NOTIFY_MORE_PREFERED_RAT_AVAIL_MSG, evtMorePrefNw},
     {CNE_NOTIFY_RAT_LOST_MSG, responseInts},
     {CNE_REQUEST_START_SCAN_WLAN_MSG, responseVoid},
     {CNE_NOTIFY_INFLIGHT_STATUS_MSG, responseInts}
-  
+

@@ -1,6 +1,6 @@
-/* 
+/*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@
     {CNE_REQUEST_REG_NOTIFICATIONS_CMD, dispatchInts, responseInts},
     {CNE_REQUEST_UPDATE_BATTERY_INFO_CMD, dispatchInts, responseVoid},
     {CNE_REQUEST_UPDATE_WLAN_INFO_CMD, dispatchWlanInfo, responseVoid},
-    {CNE_REQUEST_UPDATE_WWAN_INFO_CMD, dispatchInts, responseVoid},
-    {CNE_NOTIFY_RAT_CONNECT_STATUS_CMD, dispatchInts, responseInts},
+    {CNE_REQUEST_UPDATE_WWAN_INFO_CMD, dispatchWwanInfo, responseVoid},
+    {CNE_NOTIFY_RAT_CONNECT_STATUS_CMD, dispatchRatStatus, responseVoid},
     {CNE_NOTIFY_DEFAULT_NW_PREF_CMD, dispatchInts, responseVoid},
     {CNE_REQUEST_UPDATE_WLAN_SCAN_RESULTS_CMD, dispatchWlanScanResults, responseVoid},
     {CNE_NOTIFY_SENSOR_EVENT_CMD, dispatchVoid, responseVoid},
     {CNE_REQUEST_CONFIG_IPROUTE2_CMD, dispatchStrings, responseVoid}
 
- 
+

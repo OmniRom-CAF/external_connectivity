@@ -4,10 +4,10 @@
 /**----------------------------------------------------------------------------
   @file REF_CNE_RADIO.h
 
-  
+
 -----------------------------------------------------------------------------*/
 
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -39,7 +39,7 @@
 /*----------------------------------------------------------------------------
  * Include Files
  * -------------------------------------------------------------------------*/
-  #include "cne_svc.h"
+  #include "cne.h"
   #include "RefCneDefs.h"
 
 /*----------------------------------------------------------------------------
@@ -58,7 +58,7 @@ class CRefCneRadio
 public:
   /**
   * @brief Returns an instance of the RefCneRadio class.
-  
+
     The user of this class will call this function to get an
     instance of the class. All other public functions will be
     called  on this instance
@@ -97,7 +97,7 @@ public:
   //Turn OFF Radio
   void TurnOff ();
 
-  void SetPending 
+  void SetPending
   (
     ref_cne_net_con_req_enum_type
   );
@@ -108,8 +108,8 @@ private:
   cne_network_state_enum_type m_iNetState;
   cne_rat_type m_iMyRatType;
   ref_cne_net_con_req_enum_type m_iRequestState;
-  ref_cne_net_con_status_enum_type m_iPrevNetConState;
   ref_cne_net_con_status_enum_type m_iNetConState;
+  ref_cne_net_con_status_enum_type m_iPrevNetConState;
 
   /* Impicit Contructor which cannot be explicitly called */
   CRefCneRadio();
