@@ -485,6 +485,8 @@ bool modifyDefaultRoute
     defaultDevice = '\0';
   }
 
+  flushCache();
+
   return true;
 }
 
@@ -619,11 +621,10 @@ bool modifyRoutingTable
           break;
         }
       }
-      LOGD("Next routing table added will use table number %d", tableNumber);
 
       // Always map the same rule to the same table number. This allows the
       // reuse of priority numbers.
-      priorityNumber = MAX_PRIORITY_NUMBER - tableNumber;
+      priorityNumber = MAX_PRIORITY_NUMBER - tableNumber + 1;
 
       if ('\0' == gatewayAddress)
       {
@@ -679,7 +680,7 @@ bool modifyRoutingTable
   //Convert table number int to string, null-terminating the result
   char tableNumberString[MAX_DIGITS_TABLE_NUMBER+1];
   int32_t numberOfDigits = snprintf(tableNumberString,
-                                    MAX_DIGITS_TABLE_NUMBER,
+                                    MAX_DIGITS_TABLE_NUMBER+1,
                                     "%d",
                                     tableNumber);
   tableNumberString[numberOfDigits] = '\0';
@@ -820,13 +821,13 @@ bool modifyRule
   char priorityNumberString[MAX_DIGITS_PRIORITY_NUMBER+1];
 
   int32_t numberOfDigits = snprintf(tableNumberString,
-                                    MAX_DIGITS_TABLE_NUMBER,
+                                    MAX_DIGITS_TABLE_NUMBER+1,
                                     "%d",
                                     tableNumber);
   tableNumberString[numberOfDigits] = '\0';
 
   numberOfDigits = snprintf(priorityNumberString,
-                            MAX_DIGITS_PRIORITY_NUMBER,
+                            MAX_DIGITS_PRIORITY_NUMBER+1,
                             "%d",
                             priorityNumber);
   priorityNumberString[numberOfDigits] = '\0';
@@ -843,6 +844,8 @@ bool modifyRule
   {
     return false;
   }
+
+  flushCache();
 
   return true;
 }
@@ -1080,7 +1083,6 @@ bool cnd_iproute2::addRoutingTable
     return false;
   }
 
-  flushCache();
   return true;
 }
 
@@ -1112,7 +1114,6 @@ bool cnd_iproute2::changeDefaultTable
     return false;
   }
 
-  flushCache();
   return true;
 }
 
@@ -1138,10 +1139,42 @@ bool cnd_iproute2::deleteRoutingTable
     return false;
   }
 
-  flushCache();
   return true;
 }
 
+/*----------------------------------------------------------------------------
+ * FUNCTION      deleteDefaultEntryFromMainTable
+
+ * DESCRIPTION   Deletes the default entry in the main table for the iputted
+                 interface name.
+
+ * DEPENDENCIES  None
+
+ * RETURN VALUE  bool - True if function is successful. False otherwise.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+bool cnd_iproute2::deleteDefaultEntryFromMainTable
+(
+  uint8_t *deviceName
+)
+{
+    LOGI("Deleting %s interface from main table.", deviceName);
+
+    if (!cmdLineCaller(ROUTING_CMD,
+                       cmdLineActionEnumToString(ACTIONS_DELETE_ENUM),
+                       DEFAULT_ADDRESS,
+                       CMD_LINE_DEVICE_NAME,
+                       deviceName,
+                       NULL))
+    {
+      return false;
+    }
+
+    flushCache();
+
+    return true;
+}
 /*----------------------------------------------------------------------------
  * FUNCTION      showAllRoutingTables
 

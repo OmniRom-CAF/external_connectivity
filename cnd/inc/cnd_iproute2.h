@@ -122,6 +122,20 @@ class cnd_iproute2
     );
 
     /**
+    *  @brief Deletes a default entry from the main table.
+    *
+    *  @param deviceName       The name of the device whose default
+    *                          entry in the main table will be
+    *                          deleted (Such as wlan or wwan)
+    *  @return                 True if function is successful. False
+    *                          otherwise.
+    */
+    bool deleteDefaultEntryFromMainTable
+    (
+      uint8_t *deviceName
+    );
+
+    /**
     *  @brief Deletes a routing table from the system along with the
     *         rule corresponding to that table.
     *
@@ -134,6 +148,7 @@ class cnd_iproute2
     (
       uint8_t *deviceName
     );
+
 
     /**
     *  Displays the contents of all routing tables for debugging

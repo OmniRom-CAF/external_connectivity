@@ -32,7 +32,7 @@ struct cnd_event {
 };
 
 // Initialize internal data structs
-void cnd_event_init();
+int cnd_event_init();
 
 // Initialize an event
 void cnd_event_set(struct cnd_event * ev, int fd, int persist, cnd_event_cb func, void * param);

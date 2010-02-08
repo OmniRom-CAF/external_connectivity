@@ -34,7 +34,7 @@ static pthread_mutex_t listMutex;
 #define MUTEX_INIT() pthread_mutex_init(&listMutex, NULL)
 #define MUTEX_DESTROY() pthread_mutex_destroy(&listMutex)
 
-extern "C" void cne_svc_init(void);
+extern "C" int cne_svc_init(void);
 
 static fd_set readFds;
 static int nfds = 0;
@@ -137,14 +137,14 @@ static void firePendingEvent(void)
 }
 
 // Initialize internal data structs
-void cnd_event_init()
+int cnd_event_init()
 {
 
     MUTEX_INIT();
     FD_ZERO(&readFds);
     init_list(&pending_list);
     memset(watch_table, 0, sizeof(watch_table));
-    cne_svc_init();
+    return(cne_svc_init());
 }
 
 // Initialize an event

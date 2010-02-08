@@ -81,6 +81,7 @@ public:
 private:
   /* Wlan notification command format */
   typedef struct _Wlan {
+    int type;
     int status;
     int rssi;
     char ssid[32];

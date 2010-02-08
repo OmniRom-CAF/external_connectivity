@@ -90,6 +90,8 @@
 #define CNE_MAX_SSID_LEN 32
 #define CNE_MAX_SCANLIST_SIZE 20
 #define CNE_MAX_IPADDR_LEN 32
+#define CNE_SERVICE_DISABLED 0
+#define CNE_SERVICE_ENABLED 1
 
 
 /*----------------------------------------------------------------------------
@@ -175,6 +177,14 @@ typedef enum // correspond to network State defined in NetworkInfo.java
   CNE_NETWORK_UNKNOWN
 
 } cne_network_state_enum_type;
+
+typedef enum
+{
+  CNE_IPROUTE2_ADD_DEFAULT = 0,
+  CNE_IPROUTE2_DELETE_DEFAULT,
+  CNE_IPROUTE2_DELETE_DEFAULT_FROM_MAIN,
+  CNE_IPROUTE2_CHANGE_DEFAULT_FROM_MAIN
+} cne_iproute2_cmd_enum_type;
 
 /** Role Id Type. */
 typedef int32_t cne_role_id_type;
@@ -451,6 +461,7 @@ typedef union {
 } CneRatInfoType;
 
 typedef struct  {
+    int32_t type;
     int32_t status;
     int32_t rssi;
     char *ssid;
@@ -486,6 +497,13 @@ typedef struct {
     char *ipAddr;
 } CneRatStatusType;
 
+typedef struct  {
+    int32_t cmd;
+    char *ifName;
+    char *ipAddr;
+    char *gatewayAddr;
+} CneIpRoute2CmdType;
+
 /*----------------------------------------------------------------------------
  * Function Declarations and Documentation
  * -------------------------------------------------------------------------*/
@@ -495,10 +513,10 @@ typedef struct {
         This functions needs to be called only once at the power up.
  @param  None
  @see    None
- @return None
+*@return int to indicate if cne service enabled
 
 */
-void cne_svc_init();
+int cne_svc_init(void);
 
 
 

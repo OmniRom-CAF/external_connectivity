@@ -175,7 +175,7 @@ cne_regMessageCb
 
  * SIDE EFFECTS
  *--------------------------------------------------------------------------*/
-void cne_svc_init
+int cne_svc_init
 (
   void
 )
@@ -183,6 +183,7 @@ void cne_svc_init
   /* create the RefCne obj */
   RCNE_MSG_DEBUG("Reference CNE init called");
   (void) CRefCne::getInstance();
+  return CNE_SERVICE_DISABLED;
 }
 
 
