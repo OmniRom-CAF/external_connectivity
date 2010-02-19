@@ -1,3 +1,5 @@
+#ifndef CNE_EVENT_H
+#define CNE_EVENT_H
 /*
 ** Copyright 2006, The Android Open Source Project
 ** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
@@ -14,11 +16,15 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
+#include "cne.h"
 
 // Max number of fd's we watch at any one time.  Increase if necessary.
 #define MAX_FD_EVENTS 8
 
 typedef void (*cnd_event_cb)(int fd, void *userdata);
+typedef int (*cneIntFnType)(void);
+typedef void (*cneProcessCmdFnType)(int, void*,size_t);
+typedef void (*cneRegMsgCbFnType)(cne_messageCbType);
 
 struct cnd_event {
     struct cnd_event *next;
@@ -51,3 +57,4 @@ void cnd_event_loop();
 // Dump watch table for debugging
 void cnd_dump_watch_table();
 
+#endif /* CNE_EVENT_H */

@@ -27,6 +27,9 @@
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
+#include <dlfcn.h>
+#include "cutils/properties.h"
+#include "cne.h"
 
 static pthread_mutex_t listMutex;
 #define MUTEX_ACQUIRE() pthread_mutex_lock(&listMutex)
@@ -34,7 +37,8 @@ static pthread_mutex_t listMutex;
 #define MUTEX_INIT() pthread_mutex_init(&listMutex, NULL)
 #define MUTEX_DESTROY() pthread_mutex_destroy(&listMutex)
 
-extern "C" int cne_svc_init(void);
+cneProcessCmdFnType cne_processCommand;
+cneRegMsgCbFnType cne_regMessageCb;
 
 static fd_set readFds;
 static int nfds = 0;
@@ -144,7 +148,49 @@ int cnd_event_init()
     FD_ZERO(&readFds);
     init_list(&pending_list);
     memset(watch_table, 0, sizeof(watch_table));
-    return(cne_svc_init());
+
+    void* cneLibHandle;
+    cneIntFnType cne_svc_init = NULL;
+    char prop_value[PROPERTY_VALUE_MAX] = {'\0'};
+    int len = property_get("persist.cne.loadVendorCne", prop_value, "FALSE");
+    prop_value[len] = '\0';
+    if((strcmp(prop_value, "TRUE") == 0) ||(strcmp(prop_value, "true") == 0))
+    {
+      LOGI("loading cne library!!");
+      cneLibHandle = dlopen("/system/lib/libcne.so",RTLD_NOW);
+    }
+    else
+    {
+      LOGI("loading refcne library!!");
+      cneLibHandle = dlopen("/system/lib/librefcne.so",RTLD_NOW);
+    }
+
+    if(cneLibHandle != NULL)
+    {
+      cne_svc_init = (cneIntFnType)dlsym(cneLibHandle, "cne_svc_init");
+      cne_processCommand = (cneProcessCmdFnType)dlsym(cneLibHandle,
+                                                      "cne_processCommand");
+      cne_regMessageCb = (cneRegMsgCbFnType)dlsym(cneLibHandle,
+                                                  "cne_regMessageCb");
+    }
+    else
+    {
+      LOGE("cne library load failed.!!");
+    }
+    if(cne_svc_init == NULL || cne_processCommand == NULL ||
+         cne_regMessageCb == NULL)
+    {
+      LOGE("dlsym ret'd cne_svc_init=%x cne_processCommand=%x cne_regMessageCb=%x",
+           cne_svc_init,
+           cne_processCommand,
+           cne_regMessageCb);
+    }
+    else
+    {
+      return(cne_svc_init());
+    }
+
+    return CNE_SERVICE_DISABLED;
 }
 
 // Initialize an event

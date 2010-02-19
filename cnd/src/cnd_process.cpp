@@ -159,8 +159,8 @@ static int checkAndDequeueRequestInfo(struct RequestInfo *pRI);
 static void cnd_commandComplete(CND_Token t, CND_Errno e, void *response, size_t responselen);
 
 extern "C" const char * requestToString(int request);
-extern "C" void cne_processCommand (int command, void *data, size_t datalen);
-extern "C" void cne_regMessageCb(cne_messageCbType cbFn);
+extern "C" cneProcessCmdFnType cne_processCommand;
+extern "C" cneRegMsgCbFnType cne_regMessageCb;
 
 /** Index == commandNumber */
 static CommandInfo s_commands[] = {
@@ -197,12 +197,6 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
 
   LOGD ("processCommand: command=%d, datalen=%d", command, datalen);
 
-  if ((data == NULL) || (datalen == 0)) {
-
-    LOGE ("processCommand: invalid data");
-    return;
-  }
-
   /* Special handling for iproute2 command to setup iproute2 table */
   if ((command == CNE_REQUEST_CONFIG_IPROUTE2_CMD) && (cneServiceEnabled))
   {
@@ -212,6 +206,10 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
     unsigned char *gatewayAddr = NULL;
     unsigned char *ifName = NULL;
 
+    if ((data == NULL) || (datalen ==0)) {
+      LOGE ("processCommand: invalid data");
+      return;
+    }
 
     cmd = ((int *)data)[0];
     ifName = ((unsigned char **)data)[1];
@@ -238,7 +236,14 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
 
   }
 
-  cne_processCommand(command, data, datalen);
+  if(cne_processCommand != NULL)
+  {
+    cne_processCommand(command, data, datalen);
+  }
+  else
+  {
+    LOGE("cne_processCommand is NULL");
+  }
   cnd_commandComplete(t, CND_E_SUCCESS, NULL, 0);
   return;
 }
@@ -1128,7 +1133,14 @@ cnd_init (void)
 
     s_registerCalled = 1;
     cneServiceEnabled = cnd_event_init();
-    cne_regMessageCb(cnd_sendUnsolicitedMsg);
+    if(cne_regMessageCb != NULL)
+    {
+      cne_regMessageCb(cnd_sendUnsolicitedMsg);
+    }
+    else
+    {
+      LOGE("cne_regMessageCb is NULL");
+    }
 
     s_fdListen = android_get_control_socket(SOCKET_NAME_CND);
     if (s_fdListen < 0) {
