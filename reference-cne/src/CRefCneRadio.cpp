@@ -151,6 +151,7 @@ void CRefCneRadio::ClearPending
 (
 )
 {
+  RCNE_MSG_DEBUG("CP: cleared network [%d] request status",m_iMyRatType);
   m_iRequestState = REF_CNE_NET_NOT_PENDING;
 }
 /*=============================================================================
@@ -203,7 +204,7 @@ void CRefCneRadio::UpdateStatus
         m_iNetConState = REF_CNE_NET_STATE_CONNECTED;
 		RCNE_MSG_DEBUG("refcne %d radio state is connected",m_iMyRatType);
       }
-	  break;
+      break;
     default:
       {
         m_iNetConState = REF_CNE_NET_STATE_DISCONNECTED;
@@ -274,6 +275,8 @@ void CRefCneRadio::SetPending
   ref_cne_net_con_req_enum_type flag
 )
 {
+  RCNE_MSG_DEBUG("SP: setting network [%d] request status to [%d]",
+                 m_iMyRatType,flag);
   m_iRequestState = flag;
 }
 

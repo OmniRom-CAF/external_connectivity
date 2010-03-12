@@ -162,7 +162,7 @@ void CRefCne::RefCneCmdHdlr
       break;
     default:
       {
-        RCNE_MSG_ERROR("Command hdlr: Unrecognized command recvd [%d]",cmd);
+        RCNE_MSG_ERROR("Command hdlr: unrecognized cmd [%d] recvd",cmd);
       }
   }
 
@@ -188,14 +188,15 @@ void CRefCne::ProcessStateChange
   cne_rat_type  myPrefNet = GetPreferredNetwork();
   /* Check if the preferred network is set, if not then phone is
    * in boot up process, so do nothing */
-  if (myPrefNet == NULL)
+  if ((myPrefNet != CNE_RAT_WLAN) && (myPrefNet!= CNE_RAT_WWAN))
   {
-    RCNE_MSG_ERROR("Invalid network preference: [%d]", myPrefNet);
+    RCNE_MSG_ERROR("Preferred network unset; waiting until it is set");
+    return;
   }
 
   CRefCneRadio* pref;
   CRefCneRadio* nonpref;
-  if (myPrefNet == CNE_RAT_WLAN )
+  if (myPrefNet == CNE_RAT_WLAN)
   {
     RCNE_MSG_INFO("PSC: Preferred RAT is Wifi, non-preferred RAT is WWAN");
     pref = RefCneWifi;
@@ -223,27 +224,87 @@ void CRefCne::ProcessStateChange
        *  If both Radios are up turn off the non-preferred network
        */
       {
-        RCNE_MSG_INFO("PSC: both radios are up; disconnecting"
-                       " non-preferred radio");
-        nonpref->TurnOff();
-        nonpref->SetPending(REF_CNE_NET_PENDING_DISCONNECT);
+        RCNE_MSG_INFO("PSC: both radios are up; checking connect/ disconnect"
+                      " request status");
+	switch (nonpref->iIsConActionPending())
+	{
+          case REF_CNE_NET_PENDING_CONNECT:
+            /**
+             * Check for power-up or out of coverage scenarios
+             */
+            {
+              RCNE_MSG_INFO("PSC: device was in start up or perhaps out of"
+                             " range for all networks and now it's in range");
+              RCNE_MSG_DEBUG("PSC: turning off non-pref network...");
+              nonpref->TurnOff();
+              nonpref->SetPending(REF_CNE_NET_PENDING_DISCONNECT);
+            }
+            break;
+          case REF_CNE_NET_PENDING_DISCONNECT:
+            {
+              RCNE_MSG_DEBUG("PSC: non-pref network is in pending disconnect"
+                             " state; waiting for disconnect event");
+            }
+            break;
+          default:
+            /**
+             * Check for special cases if both networks are up
+             */
+            {
+              RCNE_MSG_DEBUG("PSC: no pending request found for non-pref net,"
+                             " checking for pref net request status");
+              if (pref->iIsConActionPending() == REF_CNE_NET_PENDING_CONNECT)
+              {
+                RCNE_MSG_DEBUG("PSC: pref network [%d]  is now available,"
+                               " turning off non-pref network",myPrefNet);
+                pref->ClearPending();
+                nonpref->TurnOff();
+                nonpref->SetPending(REF_CNE_NET_PENDING_DISCONNECT);
+              }
+              else
+              {
+                RCNE_MSG_DEBUG("PSC: unexpected bringup of non-pref network"
+                               "  -- special case ?");
+              }
+            }
+        }
       }
-	  break;
+      break;
     case ONE_RADIO_IS_CONNECTED:
       /**
-       * If only one radio is up check if it is the preferred one,
+       * If only one network is up, check if it is the preferred one,
        * if not then turn on the preferred network
        */
       {
         if (pref->bIsDataConnected() == FALSE)
         {
-          RCNE_MSG_INFO("PSC: Non preferred radio is up; reconnecting"
-                        " preferred radio");
-          pref->TurnOn();
-          pref->SetPending(REF_CNE_NET_PENDING_CONNECT);
-        } else
+          RCNE_MSG_INFO("PSC: non pref network is up; requesting"
+                         " pref net connection");
+          if (pref->iIsConActionPending() == REF_CNE_NET_PENDING_CONNECT)
+          {
+            RCNE_MSG_DEBUG("PSC: pref net is in pending connect state");
+          }
+          else
+          {
+            pref->TurnOn();
+            pref->SetPending(REF_CNE_NET_PENDING_CONNECT);
+          }
+          if (nonpref->iIsConActionPending() == REF_CNE_NET_PENDING_CONNECT)
+          {
+            nonpref->ClearPending();
+          }
+        }
+        else
         {
           RCNE_MSG_INFO("PSC: Preferred radio is connected");
+          if (pref->iIsConActionPending() == REF_CNE_NET_PENDING_CONNECT)
+          {
+            pref->ClearPending();
+          }
+          if (nonpref->iIsConActionPending() == REF_CNE_NET_PENDING_DISCONNECT)
+          {
+            nonpref->ClearPending();
+          }
         }
       }
 	  break;
@@ -253,16 +314,30 @@ void CRefCne::ProcessStateChange
        * both networks
        */
       {
-        RCNE_MSG_INFO("All radios are disconnected; trying to reconnect");
-        pref->TurnOn();
-        pref->SetPending(REF_CNE_NET_PENDING_CONNECT);
-        nonpref->TurnOn();
-        nonpref->SetPending(REF_CNE_NET_PENDING_CONNECT);
+        RCNE_MSG_WARN("All radios are disconnected; trying to reconnect");
+        if (pref->iIsConActionPending() == REF_CNE_NET_NOT_PENDING)
+        {
+          pref->TurnOn();
+          pref->SetPending(REF_CNE_NET_PENDING_CONNECT);
+        }
+        else
+        {
+          RCNE_MSG_DEBUG("PSC: pref net is in pending connect state");
+        }
+        if (nonpref->iIsConActionPending() == REF_CNE_NET_NOT_PENDING)
+        {
+          nonpref->TurnOn();
+          nonpref->SetPending(REF_CNE_NET_PENDING_CONNECT);
+        }
+        else
+        {
+          RCNE_MSG_DEBUG("PSC: non-pref net is in pending connect state");
+        }
       }
-	  break;
+      break;
     default:
       {
-        RCNE_MSG_WARN("PSC: number of active networks is invalid");
+        RCNE_MSG_ERROR("PSC: number of active networks is invalid");
         //ASSERT(0);
       }
   }
@@ -300,14 +375,6 @@ ref_cne_ret_enum_type CRefCne::UpdateWlanInfoCmd
   RCNE_MSG_DEBUG("UWLICH: WLAN info status is valid, will update status");
   RefCneWifi->UpdateStatus(WlanInfoCmd->status);
   RCNE_MSG_DEBUG("UWLICH: WLAN info status updated");
-  if ( (RefCneWifi->bIsDataConnected()
-        && (RefCneWifi->iIsConActionPending()== REF_CNE_NET_PENDING_CONNECT) )
-       || (!RefCneWifi->bIsDataConnected()
-           && (RefCneWifi->iIsConActionPending()== REF_CNE_NET_PENDING_DISCONNECT) ) )
-  {
-    RCNE_MSG_DEBUG("UWLICH: Was in connection action pending state; clearing it");
-    RefCneWifi->ClearPending();
-  }
   RCNE_MSG_INFO("UWLICH: handled Wlan update info cmd");
   return(REF_CNE_RET_OK);
 }
@@ -344,14 +411,6 @@ ref_cne_ret_enum_type CRefCne::UpdateWwanInfoCmd
   RCNE_MSG_DEBUG("UWWICH: wwan status is valid, now updating status");
   RefCneWwan->UpdateStatus(WwanInfoCmd->status);
   RCNE_MSG_DEBUG("UWWICH: wwan status is updated");
-  if ( (RefCneWwan->bIsDataConnected()
-        && (RefCneWwan->iIsConActionPending()== REF_CNE_NET_PENDING_CONNECT) )
-       || (!RefCneWwan->bIsDataConnected()
-           && (RefCneWwan->iIsConActionPending()== REF_CNE_NET_PENDING_DISCONNECT) ) )
-  {
-    RCNE_MSG_DEBUG("UWWICH: Was in connection action pending state; clearing it");
-    RefCneWwan->ClearPending();
-  }
   RCNE_MSG_INFO("UWWICH: handled Wwan update info cmd");
   return(REF_CNE_RET_OK);
 }
@@ -384,7 +443,6 @@ ref_cne_ret_enum_type CRefCne::SetPrefNetCmd
     RCNE_MSG_ERROR("SPNCH: Invalid Network ID [%d] received",*pPrefNetwork);
     return(REF_CNE_RET_ERROR);
   }
-  RCNE_MSG_INFO("SPNCH: setting preferred network to [%d]",*pPrefNetwork);
   SetPreferredNetwork(pPrefNetwork);
   RCNE_MSG_DEBUG("SPNCH: handled set preferred network cmd");
   return(REF_CNE_RET_OK);
@@ -405,6 +463,10 @@ void CRefCne::SetPreferredNetwork
   cne_rat_type* pNetId
 )
 {
+  (*pNetId) ?
+    RCNE_MSG_DEBUG("SPN: setting preferred network to [wlan]") :
+    RCNE_MSG_DEBUG("SPN: setting preferred network to [wwan]");
+
   m_siPrefNetwork = *pNetId;
   return;
 }
