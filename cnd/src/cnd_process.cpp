@@ -51,7 +51,6 @@
 
 
 
-
 namespace android {
 
 #define SOCKET_NAME_CND "cnd"
@@ -435,7 +434,6 @@ dispatchWlanInfo(Parcel &p, RequestInfo *pRI)
           "timeStamp=%s",
           args.status, args.rssi, args.ssid, args.ipAddr, args.timeStamp);
 
-
     processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
 
     return;
@@ -461,7 +459,7 @@ dispatchWlanScanResults(Parcel &p, RequestInfo *pRI)
 
     for (int i = 0; i < max; i++)
     {
-        //args->numItems = numItems;
+        args.numItems = max;
         status = p.readInt32 (&t);
         args.scanList[i].level = (int)t;
         status = p.readInt32 (&t);
@@ -571,6 +569,15 @@ dispatchIproute2Cmd(Parcel &p, RequestInfo *pRI)
 
     processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
 
+    if (args.ifName != NULL) {
+      free(args.ifName);
+    }
+    if (args.ipAddr != NULL) {
+      free(args.ipAddr);
+    }
+    if (args.gatewayAddr != NULL) {
+      free(args.gatewayAddr);
+    }
     return;
 }
 
