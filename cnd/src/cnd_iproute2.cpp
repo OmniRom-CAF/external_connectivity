@@ -62,6 +62,7 @@ using namespace std;
 #undef LOG_TAG
 #define LOG_TAG "CND_IPROUTE2"
 
+
 /*----------------------------------------------------------------------------
  * Type Declarations
  * -------------------------------------------------------------------------*/
@@ -77,11 +78,221 @@ enum Cmd_line_actions
 };
 
 // Comparator function for use in the map of active interfaces.
-struct deviceMapComparator {
+struct routingTableMapComparator {
   bool operator() (const uint8_t *string1, const uint8_t *string2) const
   {
     return (strcmp((char *)string1, (char *)string2) < 0);
   }
+};
+
+class CustomRouteInfo;
+class RoutingTableInfo;
+
+/*----------------------------------------------------------------------------
+ * Static Variable Definitions
+ * -------------------------------------------------------------------------*/
+// Commands to begin the command line string
+static const uint8_t *ROUTING_CMD                = (uint8_t *)"ip route";
+static const uint8_t *RULE_CMD                   = (uint8_t *)"ip rule";
+
+// List of all actions supported from iproute2. These should match values in
+// above enumeration 'Cmd_line_actions'
+static const uint8_t *ACTIONS_ADD_STR            = (uint8_t *)"add";
+static const uint8_t *ACTIONS_DELETE_STR         = (uint8_t *)"delete";
+static const uint8_t *ACTIONS_FLUSH_STR          = (uint8_t *)"flush";
+static const uint8_t *ACTIONS_REPLACE_STR        = (uint8_t *)"replace";
+static const uint8_t *ACTIONS_SHOW_STR           = (uint8_t *)"show";
+
+// Keywords used to refine calls to iproute2
+static const uint8_t *CMD_LINE_DEVICE_NAME       = (uint8_t *)"dev";
+static const uint8_t *CMD_LINE_GATEWAY_ADDRESS   = (uint8_t *)"via";
+static const uint8_t *CMD_LINE_PRIORITY_NUMBER   = (uint8_t *)"priority";
+static const uint8_t *CMD_LINE_SOURCE_PREFIX     = (uint8_t *)"from";
+static const uint8_t *CMD_LINE_TABLE_NUMBER      = (uint8_t *)"table";
+
+// Keywords that refer to specific routes or tables
+static const uint8_t *ALL_TABLES                 = (uint8_t *)"all";
+static const uint8_t *CACHED_ENTRIES             = (uint8_t *)"cache";
+static const uint8_t *DEFAULT_ADDRESS            = (uint8_t *)"default";
+static const uint8_t *SCOPE_GLOBAL               = (uint8_t *)"global";
+static const uint8_t *SCOPE_KEYWORD              = (uint8_t *)"scope";
+static const uint8_t *SCOPE_LINK                 = (uint8_t *)"link";
+
+// Table #1 is the first usable routing table
+static const int32_t MIN_TABLE_NUMBER            = 1;
+
+// Table #253 is the 'defined' default routing table, which should not
+// be overwritten
+static const int32_t MAX_TABLE_NUMBER            = 252;
+
+// Priority number 32766 diverts packets to the main table (Table #254)
+static const int32_t MAX_PRIORITY_NUMBER         = 32765;
+
+// Max number of digits in a table number is 3
+static const int32_t MAX_DIGITS_TABLE_NUMBER     = 3;
+
+// Max number of digits in a priority number is 5
+static const int32_t MAX_DIGITS_PRIORITY_NUMBER  = 5;
+
+cnd_iproute2* cnd_iproute2::instancePtr = NULL;
+
+/*----------------------------------------------------------------------------
+ * Global Data Definitions
+ * -------------------------------------------------------------------------*/
+// Set of all table numbers currently being used. Cannot contain more than
+// MAX_TABLE_NUMBER - MIN_TABLE_NUMBER elements
+set<int32_t> tableNumberSet;
+
+// Maps the name of a device to its corresponding routing characteristics
+map<uint8_t*, RoutingTableInfo*, routingTableMapComparator> routingTableMap;
+
+// Maps destination address of any custom entries created in the main table with
+// its corresponding routing table characteristics.
+map<uint8_t*, CustomRouteInfo*, routingTableMapComparator> customRouteMap;
+
+// If a packet does not have an associated rule, it will go to the main
+// routing table and be routed to the following device by default
+uint8_t *defaultDevice;
+
+/*-------------------------------------------------------------------------
+ * Declaration for a non-member method.
+ *-----------------------------------------------------------------------*/
+void flushCache
+(
+  void
+);
+
+uint8_t *cmdLineActionEnumToString
+(
+  Cmd_line_actions commandAction
+);
+
+uint8_t *storeRoutingInformation
+(
+  uint8_t *parameterPtr
+);
+
+bool modifyCustomRouteInMainTable
+(
+  uint8_t *destinationAddress,
+  uint8_t *deviceName,
+  uint8_t *gatewayAddress,
+  Cmd_line_actions commandAction
+);
+
+bool modifyDefaultRoute
+(
+  uint8_t *deviceName,
+  Cmd_line_actions commandAction
+);
+
+bool modifyRoutingTable
+(
+  uint8_t *deviceName,
+  uint8_t *sourcePrefix,
+  uint8_t *gatewayAddress,
+  Cmd_line_actions commandAction
+);
+
+bool modifyRule
+(
+  RoutingTableInfo *currentDevice,
+  Cmd_line_actions commandAction
+);
+
+bool cmdLineCaller
+(
+  const uint8_t* cmdLineFirstWord,
+  ...
+);
+
+/*-------------------------------------------------------------------------
+ * Class Definitions
+ *-----------------------------------------------------------------------*/
+/** Stores information needed to create a custom entry in the
+ *  main table. This allows the calling class to delete that
+ *  entry without needing to keep track of any characteristics
+ *  of the device other than its name.
+ */
+class CustomRouteInfo
+{
+  private:
+    uint8_t *deviceName;
+    uint8_t *gatewayAddress;
+    uint8_t *destinationAddress;
+
+  public:
+    CustomRouteInfo
+    (
+      uint8_t *deviceName,
+      uint8_t *gatewayAddress,
+      uint8_t *destinationAddress
+    )
+    {
+      CustomRouteInfo::deviceName = storeRoutingInformation(deviceName);
+
+      if (NULL != gatewayAddress)
+      {
+        CustomRouteInfo::gatewayAddress =
+          storeRoutingInformation(gatewayAddress);
+      }
+
+      else
+      {
+        CustomRouteInfo::gatewayAddress = NULL;
+      }
+
+      CustomRouteInfo::destinationAddress =
+        storeRoutingInformation(destinationAddress);
+    }
+
+    ~CustomRouteInfo()
+    {
+      delete [] CustomRouteInfo::deviceName;
+      if (NULL != CustomRouteInfo::gatewayAddress)
+      {
+        delete [] CustomRouteInfo::gatewayAddress;
+      }
+      if (NULL != CustomRouteInfo::destinationAddress)
+      {
+        delete [] CustomRouteInfo::destinationAddress;
+      }
+    }
+
+    uint8_t* getDestinationAddress(void)
+    {
+      return destinationAddress;
+    }
+
+    uint8_t* getDeviceName(void)
+    {
+      return deviceName;
+    }
+
+    uint8_t* getGatewayAddress(void)
+    {
+      return gatewayAddress;
+    }
+
+    void setDeviceName(uint8_t *deviceName)
+    {
+      if (NULL != CustomRouteInfo::deviceName)
+      {
+        delete [] CustomRouteInfo::deviceName;
+      }
+
+      CustomRouteInfo::deviceName = storeRoutingInformation(deviceName);
+    }
+
+    void setGatewayAddress(uint8_t *gatewayAddress)
+    {
+      if (NULL != CustomRouteInfo::gatewayAddress)
+      {
+        delete [] CustomRouteInfo::gatewayAddress;
+      }
+
+      CustomRouteInfo::gatewayAddress = storeRoutingInformation(gatewayAddress);
+    }
 };
 
 /** Stores information needed to create a routing table and a rule. This
@@ -90,7 +301,7 @@ struct deviceMapComparator {
  *  Assumes that there can only be 1 rule associated with any defined
  *  table.
  */
-class DeviceInfo
+class RoutingTableInfo
 {
   private:
     // Variables relating to the routing table
@@ -102,34 +313,8 @@ class DeviceInfo
     uint8_t *sourcePrefix;
     int32_t priorityNumber;
 
-    // Copies inputted pointer to permanent storage, returning the pointer to
-    // the newly allocated space.
-    uint8_t *storeDeviceInformation(uint8_t *parameterPtr)
-    {
-
-      if(parameterPtr == NULL)
-      {
-          LOGE("storeDeviceInformation: invalid parameter");
-          return NULL;
-      }
-      uint8_t *deviceInfoPtr =
-          new (nothrow) uint8_t[strlen((char*)parameterPtr) + 1];
-
-      if (deviceInfoPtr == NULL )
-      {
-        LOGE("storeDeviceInformation: unable to allocate memory");
-        return NULL;
-      }
-      int newByteLength = strlen((char *)parameterPtr) * sizeof(uint8_t);
-
-      memcpy(deviceInfoPtr, parameterPtr, newByteLength + 1);
-      deviceInfoPtr[newByteLength] = '\0';
-
-      return deviceInfoPtr;
-    }
-
   public:
-    DeviceInfo
+    RoutingTableInfo
     (
       uint8_t *deviceName,
       int32_t tableNumber,
@@ -138,29 +323,29 @@ class DeviceInfo
       int32_t priorityNumber
     )
     {
-      DeviceInfo::deviceName = storeDeviceInformation(deviceName);
-      DeviceInfo::tableNumber = tableNumber;
-      if (('\0' != gatewayAddress) && (NULL != gatewayAddress))
+      RoutingTableInfo::deviceName = storeRoutingInformation(deviceName);
+      RoutingTableInfo::tableNumber = tableNumber;
+      if (NULL != gatewayAddress)
       {
-        DeviceInfo::gatewayAddress = storeDeviceInformation(gatewayAddress);
+        RoutingTableInfo::gatewayAddress = storeRoutingInformation(gatewayAddress);
       }
 
       else
       {
-        DeviceInfo::gatewayAddress = '\0';
+        RoutingTableInfo::gatewayAddress = NULL;
       }
 
-      DeviceInfo::sourcePrefix = storeDeviceInformation(sourcePrefix);
-      DeviceInfo::priorityNumber = priorityNumber;
+      RoutingTableInfo::sourcePrefix = storeRoutingInformation(sourcePrefix);
+      RoutingTableInfo::priorityNumber = priorityNumber;
     }
 
-    ~DeviceInfo()
+    ~RoutingTableInfo()
     {
-      delete [] DeviceInfo::deviceName;
-      delete [] DeviceInfo::sourcePrefix;
-      if (('\0' != DeviceInfo::gatewayAddress) && (NULL != gatewayAddress))
+      delete [] RoutingTableInfo::deviceName;
+      delete [] RoutingTableInfo::sourcePrefix;
+      if (NULL != RoutingTableInfo::gatewayAddress)
       {
-        delete [] DeviceInfo::gatewayAddress;
+        delete [] RoutingTableInfo::gatewayAddress;
       }
     }
 
@@ -191,118 +376,20 @@ class DeviceInfo
 
     void setGatewayAddress(uint8_t *gatewayAddress)
     {
-      if (('\0' != DeviceInfo::gatewayAddress) && (NULL != gatewayAddress))
+      if (NULL != RoutingTableInfo::gatewayAddress)
       {
-        delete [] DeviceInfo::gatewayAddress;
+        delete [] RoutingTableInfo::gatewayAddress;
       }
 
-      DeviceInfo::gatewayAddress = storeDeviceInformation(gatewayAddress);
+      RoutingTableInfo::gatewayAddress = storeRoutingInformation(gatewayAddress);
     }
 
     void setSourcePrefix(uint8_t *sourcePrefix)
     {
-      delete [] DeviceInfo::sourcePrefix;
-      DeviceInfo::sourcePrefix = storeDeviceInformation(sourcePrefix);
+      delete [] RoutingTableInfo::sourcePrefix;
+      RoutingTableInfo::sourcePrefix = storeRoutingInformation(sourcePrefix);
     }
 };
-
-/*----------------------------------------------------------------------------
- * Global Data Definitions
- * -------------------------------------------------------------------------*/
-// Set of all table numbers currently being used. Cannot contain more than
-// MAX_TABLE_NUMBER - MIN_TABLE_NUMBER elements
-set<int32_t> tableNumberSet;
-
-// Maps the name of a device to its corresponding routing characteristics
-map<uint8_t*, DeviceInfo*, deviceMapComparator> deviceMap;
-
-// If a packet does not have an associated rule, it will go to the main
-// routing table and be routed to the following device by default
-DeviceInfo *defaultDevice;
-
-/*----------------------------------------------------------------------------
- * Static Variable Definitions
- * -------------------------------------------------------------------------*/
-// Commands to begin the command line string
-static const uint8_t *ROUTING_CMD                = (uint8_t *)"ip route";
-static const uint8_t *RULE_CMD                   = (uint8_t *)"ip rule";
-
-// List of all actions supported from iproute2. These should match values in
-// above enumeration 'Cmd_line_actions'
-static const uint8_t *ACTIONS_ADD_STR            = (uint8_t *)"add";
-static const uint8_t *ACTIONS_DELETE_STR         = (uint8_t *)"delete";
-static const uint8_t *ACTIONS_FLUSH_STR          = (uint8_t *)"flush";
-static const uint8_t *ACTIONS_REPLACE_STR        = (uint8_t *)"replace";
-static const uint8_t *ACTIONS_SHOW_STR           = (uint8_t *)"show";
-
-// Keywords used to refine calls to iproute2
-static const uint8_t *CMD_LINE_DEVICE_NAME       = (uint8_t *)"dev";
-static const uint8_t *CMD_LINE_GATEWAY_ADDRESS   = (uint8_t *)"via";
-static const uint8_t *CMD_LINE_PRIORITY_NUMBER   = (uint8_t *)"priority";
-static const uint8_t *CMD_LINE_SOURCE_PREFIX     = (uint8_t *)"from";
-static const uint8_t *CMD_LINE_TABLE_NUMBER      = (uint8_t *)"table";
-
-// Keywords that refer to specific routes or tables
-static const uint8_t *ALL_TABLES                 = (uint8_t *)"all";
-static const uint8_t *CACHED_ENTRIES             = (uint8_t *)"cache";
-static const uint8_t *DEFAULT_ADDRESS            = (uint8_t *)"default";
-
-// Table #1 is the first usable routing table
-static const int32_t MIN_TABLE_NUMBER            = 1;
-
-// Table #253 is the 'defined' default routing table, which should not
-// be overwritten
-static const int32_t MAX_TABLE_NUMBER            = 252;
-
-// Priority number 32766 diverts packets to the main table (Table #254)
-static const int32_t MAX_PRIORITY_NUMBER         = 32765;
-
-// Max number of digits in a table number is 3
-static const int32_t MAX_DIGITS_TABLE_NUMBER     = 3;
-
-// Max number of digits in a priority number is 5
-static const int32_t MAX_DIGITS_PRIORITY_NUMBER  = 5;
-
-cnd_iproute2* cnd_iproute2::instancePtr = NULL;
-
-/*-------------------------------------------------------------------------
- * Declaration for a non-member method.
- *-----------------------------------------------------------------------*/
-void flushCache
-(
-  void
-);
-
-uint8_t* cmdLineActionEnumToString
-(
-  Cmd_line_actions commandAction
-);
-
-bool modifyDefaultRoute
-(
-  uint8_t *deviceName,
-  Cmd_line_actions commandAction
-);
-
-bool modifyRoutingTable
-(
-  uint8_t *deviceName,
-  uint8_t *sourcePrefix,
-  uint8_t *gatewayAddress,
-  Cmd_line_actions commandAction
-);
-
-bool modifyRule
-(
-  DeviceInfo *currentDevice,
-  Cmd_line_actions commandAction
-);
-
-bool cmdLineCaller
-(
-  const uint8_t* cmdLineFirstWord,
-  ...
-);
 
 /*----------------------------------------------------------------------------
  * FUNCTION      getInstance
@@ -341,7 +428,7 @@ cnd_iproute2* cnd_iproute2::getInstance
 
  * SIDE EFFECTS  None
  *--------------------------------------------------------------------------*/
-uint8_t* cmdLineActionEnumToString
+uint8_t *cmdLineActionEnumToString
 (
   Cmd_line_actions commandAction
 )
@@ -365,7 +452,7 @@ uint8_t* cmdLineActionEnumToString
       break;
     default:
       LOGE("Unsupported conversion of command action to string");
-      return '\0';
+      return NULL;
   }
 }
 /*----------------------------------------------------------------------------
@@ -394,6 +481,286 @@ void flushCache
 }
 
 /*----------------------------------------------------------------------------
+ * FUNCTION      storeRoutingInformation
+
+ * DESCRIPTION   Copies inputted pointer to permanent storage, returning a
+                 pointer to the newly allocated space.
+
+ * DEPENDENCIES  None
+
+ * RETURN VALUE  Returns pointer to newly allocated memory in heap.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+uint8_t *storeRoutingInformation
+(
+  uint8_t *parameterPtr
+)
+{
+  if(NULL == parameterPtr)
+  {
+    LOGE("storeRoutingInformation: Parameter is null.");
+    return NULL;
+  }
+
+  uint8_t *memCopyPtr = new (nothrow) uint8_t[strlen((char*)parameterPtr) + 1];
+
+  if (NULL == memCopyPtr)
+  {
+    LOGE("storeRoutingInformation: unable to allocate memory");
+    return NULL;
+  }
+
+  int newByteLength = strlen((char *)parameterPtr) * sizeof(uint8_t);
+
+  memcpy(memCopyPtr, parameterPtr, newByteLength + 1);
+  memCopyPtr[newByteLength] = '\0';
+
+  return memCopyPtr;
+}
+
+/*----------------------------------------------------------------------------
+ * FUNCTION      modifyCustomRouteInMainTable
+
+ * DESCRIPTION   Adds or deletes a custom route in the main table given the name
+                 of the device associated with this route. This custom route
+                 will route all packets to an inputted destination address of a
+                 host through the inputted device name, possibly using an
+                 optional gateway address.
+
+ * DEPENDENCIES  commandAction should be either ADD OR DELETE
+
+ * RETURN VALUE  bool - True if function is successful. False otherwise.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+bool modifyCustomRouteInMainTable
+(
+  uint8_t *destinationAddress,
+  uint8_t *deviceName,
+  uint8_t *gatewayAddress,
+  Cmd_line_actions commandAction
+)
+{
+  CustomRouteInfo *currentDevice;
+  map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
+  map<uint8_t*, CustomRouteInfo*>::iterator customRouteMapIter;
+
+  if (NULL == destinationAddress)
+  {
+    LOGE("Null destination address was passed while modifying a custom route " \
+         "in the main table");
+    return false;
+  }
+
+  switch(commandAction)
+  {
+    case ACTIONS_ADD_ENUM:
+    {
+      LOGI("Adding a custom route in the main table to destination %s",
+           destinationAddress);
+
+      if (NULL == deviceName)
+      {
+        LOGE("Null device name was passed when adding a custom route");
+        return false;
+      }
+
+      if (NULL == gatewayAddress)
+      {
+        LOGI("A null gateway address was passed when adding the entry to %s",
+             destinationAddress);
+      }
+
+      routingTableMapIter = routingTableMap.find(deviceName);
+
+      if ((routingTableMapIter != routingTableMap.end()) &&
+          (NULL == routingTableMapIter->second))
+      {
+        LOGW("Routing table information has been corrupted for %s table",
+             deviceName);
+      }
+
+      else if (routingTableMapIter != routingTableMap.end())
+      {
+        LOGI("A separate routing table exists for %s. This table will not be " \
+             "updated.", deviceName);
+      }
+
+      customRouteMapIter = customRouteMap.find(destinationAddress);
+
+      if ((customRouteMapIter != customRouteMap.end()) &&
+          (NULL == customRouteMapIter->second))
+      {
+        LOGW("Custom route in main table information has been corrupted for %s",
+             destinationAddress);
+      }
+
+      else if (customRouteMapIter != customRouteMap.end())
+      {
+        CustomRouteInfo *existingDevice = customRouteMapIter->second;
+
+        uint8_t *existingGateway = existingDevice->getGatewayAddress();
+
+        // If interface name has changed for a particular destination, must
+        // delete and add back the custom entry. A simple 'replace' command
+        // will not remove the old entry. Any changes to the gateway address
+        // will be picked up when a new entry is added
+        if (0 != strcmp((char *)existingDevice->getDeviceName(),
+                        (char *)deviceName))
+        {
+            commandAction = ACTIONS_REPLACE_ENUM;
+
+            existingDevice->setDeviceName(deviceName);
+            existingDevice->setGatewayAddress(gatewayAddress);
+
+            break;
+        }
+
+        // Because the gateway address is an optional parameter, must account
+        // for cases where the gateway address changes from null to non-null or
+        // vice-versa
+        else if ( !((NULL == existingGateway) && (NULL == gatewayAddress)) &&
+                   ((NULL == gatewayAddress) || (NULL == existingGateway) ||
+                    (0 != strcmp((char *)existingGateway,
+                                 (char *)gatewayAddress))) )
+        {
+          commandAction = ACTIONS_REPLACE_ENUM;
+
+          existingDevice->setGatewayAddress(gatewayAddress);
+
+          break;
+        }
+
+        else {
+          if (NULL == gatewayAddress)
+          {
+            LOGI("Adding duplicate custom route in main table with device %s," \
+                 "destination address %s.", deviceName, destinationAddress);
+            return true;
+          }
+
+          else {
+            LOGI("Adding duplicate custom route in main table with device %s," \
+                 "destination %s, gateway %s",
+                 deviceName, destinationAddress, gatewayAddress);
+            return true;
+          }
+        }
+      }
+      else {
+        LOGI("Device '%s' not found in a custom entry to main table",
+             deviceName);
+      }
+
+      currentDevice = new CustomRouteInfo(deviceName,
+                                          gatewayAddress,
+                                          destinationAddress);
+
+      if ((NULL == currentDevice) ||
+          (NULL == currentDevice->getDeviceName()) ||
+          (NULL == currentDevice->getDestinationAddress()))
+      {
+        LOGE("Failed to allocate new device information while adding custom " \
+             "entry over interface %s to main table.", deviceName);
+        return false;
+      }
+
+      break;
+    }
+
+    case ACTIONS_DELETE_ENUM:
+    {
+      LOGI("Deleting a custom route in the main table with destination %s",
+           destinationAddress);
+
+      if (customRouteMap.empty())
+      {
+        LOGE("Deleting a custom route in the main table when no route exists.");
+        return false;
+      }
+
+      customRouteMapIter = customRouteMap.find(destinationAddress);
+
+      if (customRouteMapIter == customRouteMap.end())
+      {
+        LOGE("Cannot delete custom route over %s that has not been created.",
+             destinationAddress);
+        return false;
+      }
+
+      currentDevice = customRouteMapIter->second;
+      if (NULL == currentDevice)
+      {
+        LOGE("Deleting custom route over %s with a stored name and null value",
+             destinationAddress);
+        return false;
+      }
+
+      gatewayAddress = currentDevice->getGatewayAddress();
+      deviceName = currentDevice->getDeviceName();
+      break;
+    }
+
+    default:
+    {
+      LOGE("Unsupported command action found while modifying a custom route");
+      return false;
+    }
+  }
+
+  if (NULL == gatewayAddress)
+  {
+    cmdLineCaller(ROUTING_CMD,
+                  cmdLineActionEnumToString(commandAction),
+                  destinationAddress,
+                  CMD_LINE_DEVICE_NAME,
+                  deviceName,
+                  SCOPE_KEYWORD,
+                  SCOPE_LINK,
+                  NULL);
+  }
+
+  else
+  {
+    cmdLineCaller(ROUTING_CMD,
+                  cmdLineActionEnumToString(commandAction),
+                  destinationAddress,
+                  CMD_LINE_GATEWAY_ADDRESS,
+                  gatewayAddress,
+                  CMD_LINE_DEVICE_NAME,
+                  deviceName,
+                  SCOPE_KEYWORD,
+                  SCOPE_GLOBAL,
+                  NULL);
+  }
+
+  switch(commandAction)
+  {
+    case ACTIONS_ADD_ENUM:
+    {
+      customRouteMap.insert(make_pair(currentDevice->getDestinationAddress(),
+                                      currentDevice));
+      break;
+    }
+
+    case ACTIONS_DELETE_ENUM:
+    {
+      customRouteMap.erase(destinationAddress);
+      delete currentDevice;
+
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  flushCache();
+
+  return true;
+}
+/*----------------------------------------------------------------------------
  * FUNCTION      modifyDefaultRoute
 
  * DESCRIPTION   Changes the default route given the name of the device that
@@ -419,13 +786,13 @@ bool modifyDefaultRoute
   Cmd_line_actions commandAction
 )
 {
-  uint8_t *gatewayAddress;
+  uint8_t *gatewayAddress = NULL;
 
   switch(commandAction)
   {
     case ACTIONS_REPLACE_ENUM:
     {
-      if (('\0' == deviceName) || (NULL == deviceName))
+      if (NULL == deviceName)
       {
         LOGE("A null device name was passed while replacing the default table");
         return false;
@@ -433,35 +800,79 @@ bool modifyDefaultRoute
 
       // Case where the default device known by cnd is the same as the new
       // device that is replacing it.
-      if (('\0' != defaultDevice) && (NULL != defaultDevice) &&
-          (0 == strcmp((char *)defaultDevice->getDeviceName(),
-                       (char *)deviceName)))
+      if ((NULL != defaultDevice) &&
+          (0 == strcmp((char *)defaultDevice, (char *)deviceName)))
       {
-        LOGW("The new default interface %s is the same as the one known by cnd",
+        LOGI("The new default interface %s is the same as the one known by cnd",
              deviceName);
       }
 
       LOGI("Replacing default routing table with %s", deviceName);
 
-      map<uint8_t*, DeviceInfo*>::iterator deviceMapIter;
-      deviceMapIter = deviceMap.find(deviceName);
+      bool foundMatchingEntry = false;
+      map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
+      map<uint8_t*, CustomRouteInfo*>::iterator customRouteMapIter;
 
-      if (deviceMapIter == deviceMap.end())
+      routingTableMapIter = routingTableMap.find(deviceName);
+      customRouteMapIter = customRouteMap.begin();
+
+      if (routingTableMapIter != routingTableMap.end())
       {
-        LOGE("Cannot make the nonexistant table %s the default.",
+        if (NULL == routingTableMapIter->second)
+        {
+          LOGW("Routing table for new default %s has corrupt stored values",
+               deviceName);
+        }
+
+        else
+        {
+          LOGI("Routing table for new default %s found", deviceName);
+          foundMatchingEntry = true;
+          gatewayAddress = routingTableMapIter->second->getGatewayAddress();
+        }
+      }
+
+      else
+      {
+        while (customRouteMapIter != customRouteMap.end())
+        {
+          uint8_t *destinationAddress = customRouteMapIter->first;
+          CustomRouteInfo *currentDevice = customRouteMapIter->second;
+
+          ++customRouteMapIter;
+
+          if (NULL == destinationAddress)
+          {
+            LOGW("Entry in custom route map is corrupted");
+            continue;
+          }
+
+          if (NULL == currentDevice)
+          {
+            LOGW("Value in custom route map with destination %s is corrupted",
+                 destinationAddress);
+            continue;
+          }
+
+          if (0 == strcmp((char *)currentDevice->getDeviceName(),
+                          (char *)deviceName))
+          {
+            LOGI("Custom route for new default %s found", deviceName);
+            foundMatchingEntry = true;
+            gatewayAddress = currentDevice->getGatewayAddress();
+            break;
+          }
+        }
+      }
+
+      if (!foundMatchingEntry)
+      {
+        LOGI("No routing tables or entries found for new default device %s",
              deviceName);
-        return false;
       }
 
-      if (deviceMapIter->second == NULL) {
-        LOGE("Adding a default table with no known device information");
-        return false;
-      }
+      defaultDevice = storeRoutingInformation(deviceName);
 
-      defaultDevice = deviceMapIter->second;
-
-      LOGI("Default device has a stored name of %s.",
-           defaultDevice->getDeviceName());
       break;
     }
 
@@ -469,7 +880,7 @@ bool modifyDefaultRoute
     {
       // The following case should only be entered if the default table is
       // being deleted when no tables exist
-      if (('\0' == defaultDevice) || (NULL == defaultDevice))
+      if (NULL == defaultDevice)
       {
         LOGE("No stored default device; use deleteDefaultEntryFromMainTable.");
         return false;
@@ -487,20 +898,18 @@ bool modifyDefaultRoute
     }
   }
 
-  gatewayAddress = defaultDevice->getGatewayAddress();
-
   // These commands may fail if the kernel has already executed an operation on
   // its own. Treat a call to modify the main table as if was successful.
-  if (('\0' == gatewayAddress) || (NULL == gatewayAddress))
-  { 
+  if (NULL == gatewayAddress)
+  {
     cmdLineCaller(ROUTING_CMD,
                   cmdLineActionEnumToString(commandAction),
                   DEFAULT_ADDRESS,
                   CMD_LINE_DEVICE_NAME,
-                  defaultDevice->getDeviceName(),
+                  defaultDevice,
                   NULL);
   }
-  else 
+  else
   {
     cmdLineCaller(ROUTING_CMD,
                   cmdLineActionEnumToString(commandAction),
@@ -508,7 +917,7 @@ bool modifyDefaultRoute
                   CMD_LINE_GATEWAY_ADDRESS,
                   gatewayAddress,
                   CMD_LINE_DEVICE_NAME,
-                  defaultDevice->getDeviceName(),
+                  defaultDevice,
                   NULL);
   }
 
@@ -516,7 +925,11 @@ bool modifyDefaultRoute
   {
     // After a deletion, there should be no default device defined in the main
     // routing table
-    defaultDevice = NULL;
+    if (NULL != defaultDevice)
+    {
+      delete [] defaultDevice;
+      defaultDevice = NULL;
+    }
   }
 
   flushCache();
@@ -553,11 +966,11 @@ bool modifyRoutingTable
   int32_t tableNumber;
   int32_t priorityNumber;
 
-  DeviceInfo *currentDevice;
-  map<uint8_t*, DeviceInfo*>::iterator deviceMapIter;
+  RoutingTableInfo *currentDevice;
+  map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
   set<int32_t>::iterator tableNumberSetIter;
 
-  if (('\0' == deviceName) || (NULL == deviceName))
+  if (NULL == deviceName)
   {
     LOGE("A null device name was passed while modifying a routing table");
     return false;
@@ -569,26 +982,26 @@ bool modifyRoutingTable
     {
       LOGI("Adding a routing table for interface %s", deviceName);
 
-      if (('\0' == sourcePrefix) || (NULL == sourcePrefix))
+      if (NULL == sourcePrefix)
       {
         LOGE("A null source prefix was passed when adding the %s table",
              deviceName);
         return false;
       }
 
-      if (('\0' == gatewayAddress) || (NULL == gatewayAddress))
+      if (NULL == gatewayAddress)
       {
         LOGI("A null gateway address was passed when adding the %s table",
              deviceName);
       }
 
-      deviceMapIter = deviceMap.find(deviceName);
+      routingTableMapIter = routingTableMap.find(deviceName);
 
-      if ((deviceMapIter != deviceMap.end()) &&
-          (NULL == deviceMapIter->second))
+      if ((routingTableMapIter != routingTableMap.end()) &&
+          (NULL == routingTableMapIter->second))
       {
         LOGW("Adding duplicate routing table with corrupt device information");
-        deviceMap.erase(deviceName);
+        routingTableMap.erase(deviceName);
       }
 
       // If a call to add a routing table overwrites an existing table, the
@@ -596,9 +1009,9 @@ bool modifyRoutingTable
       // However, calls to add a duplicate table, where the source and
       // gateway addresses do not change, are ignored and will simply return
       // true.
-      else if (deviceMapIter != deviceMap.end())
+      else if (routingTableMapIter != routingTableMap.end())
       {
-        DeviceInfo *existingDevice = deviceMapIter->second;
+        RoutingTableInfo *existingDevice = routingTableMapIter->second;
 
         int isNewSourcePrefix = strcmp((char *)existingDevice->getSourcePrefix(),
                                        (char *)sourcePrefix);
@@ -608,31 +1021,27 @@ bool modifyRoutingTable
         // Because the gateway address is an optional parameter, must account
         // for cases where the gateway address changes from null to non-null or
         // vice-versa
-        if ( !(('\0' == existingGateway) || (NULL == existingGateway)) &&
-              (('\0' == gatewayAddress)  || (NULL == gatewayAddress)) )
-        {
-          if ( ('\0' == gatewayAddress)  || (NULL == gatewayAddress) ||
-               ('\0' == existingGateway) || (NULL == existingGateway) ||
+        if ( !((NULL == existingGateway) && (NULL == gatewayAddress)) &&
+              ((NULL == gatewayAddress) || (NULL == existingGateway) ||
                (0 != strcmp((char *)existingGateway,
-                            (char *)gatewayAddress)))
+                            (char *)gatewayAddress))) )
+        {
+          // Replace active table and rule with changes to gateway address and
+          // possibly the source prefix, if it has changed.
+          commandAction = ACTIONS_REPLACE_ENUM;
+
+          modifyRule(existingDevice, ACTIONS_DELETE_ENUM);
+
+          existingDevice->setGatewayAddress(gatewayAddress);
+
+          if (0 != isNewSourcePrefix)
           {
-            // Replace active table and rule with changes to gateway address and
-            // possibly the source prefix, if it has changed.
-            commandAction = ACTIONS_REPLACE_ENUM;
-
-            modifyRule(existingDevice, ACTIONS_DELETE_ENUM);
-
-            existingDevice->setGatewayAddress(gatewayAddress);
-
-            if (0 != isNewSourcePrefix)
-            {
-              existingDevice->setSourcePrefix(sourcePrefix);
-            }
-
-            tableNumber = existingDevice->getTableNumber();
-
-            break;
+            existingDevice->setSourcePrefix(sourcePrefix);
           }
+
+          tableNumber = existingDevice->getTableNumber();
+
+          break;
         }
 
         // Check for differences between source addresses. If a change in the
@@ -648,7 +1057,7 @@ bool modifyRoutingTable
         }
 
         else {
-          if (('\0' == gatewayAddress) || (NULL == gatewayAddress))
+          if (NULL == gatewayAddress)
           {
             LOGI("Adding a duplicate %s table with source %s.",
                  deviceName, sourcePrefix);
@@ -692,20 +1101,17 @@ bool modifyRoutingTable
       // reuse of priority numbers.
       priorityNumber = MAX_PRIORITY_NUMBER - tableNumber + 1;
 
-      currentDevice = new DeviceInfo(deviceName,
-                                     tableNumber,
-                                     gatewayAddress,
-                                     sourcePrefix,
-                                     priorityNumber);
+      currentDevice = new RoutingTableInfo(deviceName,
+                                           tableNumber,
+                                           gatewayAddress,
+                                           sourcePrefix,
+                                           priorityNumber);
 
-      // Gateway address may be null, which is allowed. However, if an
-      // optional gateway address was inputted, it will be lost in the
-      // iproute2 call
       if ((NULL == currentDevice) ||
           (NULL == currentDevice->getDeviceName()) ||
           (NULL == currentDevice->getSourcePrefix()))
       {
-        LOGE("Failed to allocate new device information while adding table %s.", 
+        LOGE("Failed to allocate new device information while adding table %s.",
              deviceName);
         return false;
       }
@@ -717,22 +1123,22 @@ bool modifyRoutingTable
     {
       LOGI("Deleting routing table for interface %s", deviceName);
 
-      if (deviceMap.empty())
+      if (routingTableMap.empty())
       {
         LOGE("Deleting a table when no table exists.");
         return false;
       }
 
-      deviceMapIter = deviceMap.find(deviceName);
+      routingTableMapIter = routingTableMap.find(deviceName);
 
-      if (deviceMapIter == deviceMap.end())
+      if (routingTableMapIter == routingTableMap.end())
       {
         LOGE("Cannot delete table %s that has not been created.", deviceName);
         return false;
       }
 
-      currentDevice = deviceMapIter->second;
-      if (currentDevice == NULL) 
+      currentDevice = routingTableMapIter->second;
+      if (NULL == currentDevice)
       {
         LOGE("Deleting table with a stored name and null value");
         return false;
@@ -758,8 +1164,8 @@ bool modifyRoutingTable
                                     tableNumber);
   tableNumberString[numberOfDigits] = '\0';
 
-  if (('\0' == gatewayAddress) || (NULL == gatewayAddress))
-  {    
+  if (NULL == gatewayAddress)
+  {
     cmdLineCaller(ROUTING_CMD,
                   cmdLineActionEnumToString(commandAction),
                   DEFAULT_ADDRESS,
@@ -789,14 +1195,14 @@ bool modifyRoutingTable
     // command.
     case ACTIONS_ADD_ENUM:
     {
-      deviceMap.insert(make_pair(currentDevice->getDeviceName(),currentDevice));
+      routingTableMap.insert(make_pair(currentDevice->getDeviceName(),currentDevice));
       tableNumberSet.insert(tableNumber);
     }
 
     case ACTIONS_REPLACE_ENUM:
     {
-      // If there is no default table, the new device should be the default.
-      if ('\0' == defaultDevice)
+      // If there is no default entry, the new device should be the default.
+      if (NULL == defaultDevice)
       {
         LOGI("Routing table added when no default exists. Adding new default.");
         modifyDefaultRoute(deviceName, ACTIONS_REPLACE_ENUM);
@@ -807,21 +1213,22 @@ bool modifyRoutingTable
 
     case ACTIONS_DELETE_ENUM:
     {
-      deviceMap.erase(deviceName);
+      routingTableMap.erase(deviceName);
       tableNumberSet.erase(tableNumber);
 
       // If there are no more tables, then there should be no default device.
       if (0 == tableNumberSet.size())
       {
         LOGI("Removing default table after no devices are known to be up");
-        modifyDefaultRoute('\0', ACTIONS_DELETE_ENUM);
+        modifyDefaultRoute(NULL, ACTIONS_DELETE_ENUM);
       }
 
       // If the default table has been deleted and another device is available,
       // set an arbitrary new device as the new default.
-      else if (defaultDevice == currentDevice)
+      else if (0 == strcmp((char *)defaultDevice,
+                           (char *)currentDevice->getDeviceName()))
       {
-        uint8_t *newDefaultName = deviceMap.begin()->first;
+        uint8_t *newDefaultName = routingTableMap.begin()->first;
 
         LOGI("Replacing old default device with %s", newDefaultName);
         modifyDefaultRoute(newDefaultName, ACTIONS_REPLACE_ENUM);
@@ -842,7 +1249,8 @@ bool modifyRoutingTable
 
   bool modifyRuleRetValue = modifyRule(currentDevice, commandAction);
 
-  // Delete device information that will no longer be used
+  // Delete device information that will no longer be used, if it is not
+  // being stored elsewhere
   if (ACTIONS_DELETE_ENUM == commandAction)
   {
     delete currentDevice;
@@ -871,24 +1279,24 @@ bool modifyRoutingTable
  *--------------------------------------------------------------------------*/
 bool modifyRule
 (
-  DeviceInfo *currentDevice,
+  RoutingTableInfo *currentDevice,
   Cmd_line_actions commandAction
 )
 {
-  if (('\0' == currentDevice) || (NULL == currentDevice))
+  if (NULL == currentDevice)
   {
     LOGE("A null device was passed while modifying a rule");
     return false;
   }
 
   uint8_t* deviceName = currentDevice->getDeviceName();
-  map<uint8_t*, DeviceInfo*>::iterator deviceMapIter;
-  deviceMapIter = deviceMap.find(deviceName);
+  map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
+  routingTableMapIter = routingTableMap.find(deviceName);
 
   // If a rule is being added, its corresponding table should exist in the map
   // of all routing tables.
   if ((ACTIONS_ADD_ENUM == commandAction) &&
-       (deviceMapIter == deviceMap.end()))
+       (routingTableMapIter == routingTableMap.end()))
   {
     LOGE("Cannot %s a rule for nonexistant table %s",
          cmdLineActionEnumToString(commandAction),
@@ -962,7 +1370,7 @@ bool cmdLineCaller
   uint8_t *nextWord;
   char *cmdLineString;
 
-  if (('\0' == cmdLineFirstWord) || (NULL == cmdLineFirstWord))
+  if (NULL == cmdLineFirstWord)
   {
     LOGE("No actual command passed to build a command line.");
     return false;
@@ -1009,7 +1417,7 @@ bool cmdLineCaller
     // Add white space
     memLength = strlcat(cmdLineString,
                         " ",
-                        strlen(cmdLineString) * sizeof(char) + 
+                        strlen(cmdLineString) * sizeof(char) +
                         sizeof(uint8_t) + 1);
     if (memLength > strlen(cmdLineString) * sizeof(char) + sizeof(uint8_t) + 1)
     {
@@ -1035,7 +1443,7 @@ bool cmdLineCaller
   }
 
   va_end(cmdLineWordList);
- 
+
   cmdLineString[byteLength + numberOfSpaces] = '\0';
 
   LOGI("Iproute2 will be called with: %s", cmdLineString);
@@ -1054,6 +1462,32 @@ bool cmdLineCaller
   LOGI("Iproute2 successfully called.", cmdLineString);
 
   return true;
+}
+
+
+/*----------------------------------------------------------------------------
+ * FUNCTION      addCustomEntryInMainTable
+
+ * DESCRIPTION   Adds a custom entry to the main table to a specific destination
+                 address over the given interface name
+
+ * DEPENDENCIES  None
+
+ * RETURN VALUE  bool - True if function is successful. False otherwise.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+bool cnd_iproute2::addCustomEntryInMainTable
+(
+  uint8_t *destinationAddress,
+  uint8_t *deviceName,
+  uint8_t *gatewayAddress
+)
+{
+  return (modifyCustomRouteInMainTable(destinationAddress,
+                                       deviceName,
+                                       gatewayAddress,
+                                       ACTIONS_ADD_ENUM));
 }
 
 /*----------------------------------------------------------------------------
@@ -1084,47 +1518,10 @@ bool cnd_iproute2::addRoutingTable
   uint8_t *gatewayAddress
 )
 {
-  if (!modifyRoutingTable(deviceName,
-                          sourcePrefix,
-                          gatewayAddress,
-                          ACTIONS_ADD_ENUM))
-  {
-    return false;
-  }
-
-  return true;
-}
-
-/*----------------------------------------------------------------------------
- * FUNCTION      changeDefaultTable
-
- * DESCRIPTION   Changes the default device where packets are routed to. If
-                 some source address does not match an already defined rule,
-                 packets from that source address will be routed through the
-                 main table to some default device. This function replaces the
-                 default route to direct traffic to an inputted, already
-                 defined device. A routing table associated with this device
-                 must have been added through addRoutingTable() before it can
-                 be the default.
-
- * DEPENDENCIES  The new default table must have already been added via the
-                 addRoutingTable API.
-
- * RETURN VALUE  bool - True if function is successful. False otherwise.
-
- * SIDE EFFECTS  None
- *--------------------------------------------------------------------------*/
-bool cnd_iproute2::changeDefaultTable
-(
-  uint8_t *deviceName
-)
-{
-  if (!modifyDefaultRoute(deviceName, ACTIONS_REPLACE_ENUM))
-  {
-    return false;
-  }
-
-  return true;
+  return (modifyRoutingTable(deviceName,
+                             sourcePrefix,
+                             gatewayAddress,
+                             ACTIONS_ADD_ENUM));
 }
 
 /*----------------------------------------------------------------------------
@@ -1145,18 +1542,115 @@ bool cnd_iproute2::deleteRoutingTable
   uint8_t *deviceName
 )
 {
-  if (!modifyRoutingTable(deviceName, '\0', '\0', ACTIONS_DELETE_ENUM))
-  {
-    return false;
-  }
-
-  return true;
+  return (modifyRoutingTable(deviceName, NULL, NULL, ACTIONS_DELETE_ENUM));
 }
 
 /*----------------------------------------------------------------------------
- * FUNCTION      deleteDefaultEntryFromMainTable
+ * FUNCTION      deleteCustomEntryInMainTable
 
- * DESCRIPTION   Deletes the default entry in the main table for the iputted
+ * DESCRIPTION   Deletes a custom entry from the main table that has already
+                 been added via addCustomEntryToMainTable
+
+ * DEPENDENCIES  None
+
+ * RETURN VALUE  bool - True if function is successful. False otherwise.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+bool cnd_iproute2::deleteCustomEntryInMainTable
+(
+  uint8_t *destinationAddress
+)
+{
+  return (modifyCustomRouteInMainTable(destinationAddress,
+                                       NULL,
+                                       NULL,
+                                       ACTIONS_DELETE_ENUM));
+}
+
+/*----------------------------------------------------------------------------
+ * FUNCTION      deleteDeviceCustomEntriesInMainTable
+
+ * DESCRIPTION   Deletes all custom entries from the main table that route
+                 through the inputted interface name. These routes must have
+                 already been added via addCustomEntryToMainTable
+
+ * DEPENDENCIES  None
+
+ * RETURN VALUE  bool - True if function is successful. False otherwise.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+bool cnd_iproute2::deleteDeviceCustomEntriesInMainTable
+(
+  uint8_t *deviceName
+)
+{
+  if (NULL == deviceName)
+  {
+    LOGE("Null device name was passed when adding a custom route");
+    return false;
+  }
+
+  LOGI("Deleting custom routes in the main table through interface %s",
+       deviceName);
+
+  if (customRouteMap.empty())
+  {
+    LOGE("Deleting a custom route in the main table when no route exists.");
+    return false;
+  }
+
+  bool returnValue = true;
+  bool foundMatchingEntry = false;
+
+  map<uint8_t*, CustomRouteInfo*>::iterator customRouteMapIter;
+
+  customRouteMapIter = customRouteMap.begin();
+
+  while (customRouteMapIter != customRouteMap.end())
+  {
+    uint8_t *destinationAddress = customRouteMapIter->first;
+    CustomRouteInfo *currentDevice = customRouteMapIter->second;
+
+    ++customRouteMapIter;
+
+    if (NULL == destinationAddress)
+    {
+      LOGW("Entry in currentDevice is corrupted.");
+      continue;
+    }
+
+    if (NULL == currentDevice)
+    {
+      LOGW("Entry in currentDevice with destination %s is corrupted",
+           destinationAddress);
+      continue;
+    }
+
+    if (0 == strcmp((char *)currentDevice->getDeviceName(), (char *)deviceName))
+    {
+      foundMatchingEntry = true;
+      returnValue = modifyCustomRouteInMainTable(destinationAddress,
+                                                 NULL,
+                                                 NULL,
+                                                 ACTIONS_DELETE_ENUM);
+    }
+  }
+
+  if (!foundMatchingEntry)
+  {
+    LOGE("No entry was found with interface name %s.", deviceName);
+    return false;
+  }
+
+  return returnValue;
+}
+
+/*----------------------------------------------------------------------------
+ * FUNCTION      deleteDefaultEntryInMainTable
+
+ * DESCRIPTION   Deletes the default entry in the main table for the inputted
                  interface name.
 
  * DEPENDENCIES  None
@@ -1165,7 +1659,7 @@ bool cnd_iproute2::deleteRoutingTable
 
  * SIDE EFFECTS  None
  *--------------------------------------------------------------------------*/
-bool cnd_iproute2::deleteDefaultEntryFromMainTable
+bool cnd_iproute2::deleteDefaultEntryInMainTable
 (
   uint8_t *deviceName
 )
@@ -1186,6 +1680,34 @@ bool cnd_iproute2::deleteDefaultEntryFromMainTable
 
   return true;
 }
+
+/*----------------------------------------------------------------------------
+ * FUNCTION      replaceDefaultEntryInMainTable
+
+ * DESCRIPTION   Changes the default device where packets are routed to. If
+                 some source address does not match an already defined rule,
+                 packets from that source address will be routed through the
+                 main table to some default device. This function replaces the
+                 default route to direct traffic to an inputted, already
+                 defined device. A routing table associated with this device
+                 must have been added through addRoutingTable() before it can
+                 be the default.
+
+ * DEPENDENCIES  The new default table must have already been added via the
+                 addRoutingTable API.
+
+ * RETURN VALUE  bool - True if function is successful. False otherwise.
+
+ * SIDE EFFECTS  None
+ *--------------------------------------------------------------------------*/
+bool cnd_iproute2::replaceDefaultEntryInMainTable
+(
+  uint8_t *deviceName
+)
+{
+  return (modifyDefaultRoute(deviceName, ACTIONS_REPLACE_ENUM));
+}
+
 /*----------------------------------------------------------------------------
  * FUNCTION      showAllRoutingTables
 
@@ -1227,7 +1749,7 @@ bool cnd_iproute2::showRoutingTable
   uint8_t *deviceName
 )
 {
-  if (('\0' == deviceName) || (NULL == deviceName))
+  if (NULL == deviceName)
   {
     LOGE("A null device name was passed while displaying a table.");
     return false;
