@@ -33,10 +33,11 @@
   @file cnd_iproute2.h
 
         cnd_iproute2 is an interface to make the necessary calls to iproute2
-        in order to set up and take down routing tables. Defines APIS so that
-        a routing table associated with a RAT can be added or deleted. Also
-        allows the user to change the default routing table when a given
-        source address is not already associated with a RAT.
+        in order to set up and take down routing tables. Defines APIs so that
+        a routing table associated with a network interface can be added or
+        deleted. Also allows the user to change the default routing table when
+        a given source address is not already associated with a network
+        interface.
 -----------------------------------------------------------------------------*/
 
 
@@ -62,11 +63,11 @@ class cnd_iproute2
   public:
     /**
     * @brief Returns an instance of the Cnd_iproute2 class.
-
-      The user of this class will call this function to get an
-      instance of the class. All other public functions will be
-      called on this instance
-
+    *
+    * The user of this class will call this function to get an
+    * instance of the class. All other public functions will be
+    * called on this instance
+    *
     * @param   None
     * @see     None
     * @return  An instance of the Cnd_iproute2 class is returned.
@@ -77,21 +78,49 @@ class cnd_iproute2
     );
 
     /**
-    * @brief Create a routing table for a RAT using iproute2
+    * @brief Creates a custom route in the main table using iproute2
     *
-    * The user of this function passes in the name of the RAT that
-    * matches the name already defined in the Android system. The
-    * user also needs to locate the gateway address and source
-    * prefix assocated with that RAT device. If a table is added
-    * when no another tables exist, it will automatically become the
-    * default table.
+    * The user of this function passes in the name of the network
+    * interface that matches the name already defined in the Android
+    * system. This radio will handle any packets that are sent to
+    * the inputted destination address of a host. Optionally, a user
+    * can pass the gateway address of the device.
+    *
+    * @param destinationAddress  The destination address of the
+    *                            custom entry in the main table that
+    *                            will be added
+    * @param deviceName          The name of the device that will
+    *                            handle packets to the host
+    * @param gatewayAddress      The gateway address of the device
+    *                            (optional)
+    * @return                    True if function is successful.
+    *                            False otherwise.
+    */
+    bool addCustomEntryInMainTable
+    (
+      uint8_t *destinationAddress,
+      uint8_t *deviceName,
+      uint8_t *gatewayAddress
+    );
+
+    /**
+    * @brief Create a routing table for a network interface using
+    *        iproute2
+    *
+    * The user of this function passes in the name of the network
+    * interface that matches the name already defined in the Android
+    * system. The user also needs to locate the source prefix, and,
+    * optionally, the gateway address assocated with that radio. If
+    * a table is added when no another tables exist, it will
+    * automatically become the default table.
     *
     * @param deviceName       The name of the device whose table
-    *                         will be added (Such as wlan or wwan)
+    *                         will be added
     * @param sourcePrefix     The source network prefix or address
     *                         that will be routed to the device
     *                         (Such as 37.214.21/24 or 10.156.45.1)
-    * @param gatewayAddress   The gateway address of the device.
+    * @param gatewayAddress   The gateway address of the device
+    *                         (optional)
     * @return                 True if function is successful. False
     *                         otherwise.
     */
@@ -103,59 +132,97 @@ class cnd_iproute2
     );
 
     /**
-    * @brief Change the default routing table that is associated
-    *        with any source addresses not bound to another table.
+    * @brief Deletes the custom route to the inputted destination
+    *        address in the main table using iproute2
     *
-    * The user of this function passes in the name of the RAT that
-    * matches the name already defined in the Android system. That
-    * device will become the new default. If this RAT is already the
-    * default, this function simply returns true.
+    * The custom route being deleted should have been added via
+    * addCustomEntryToMainTable()
     *
-    * @param deviceName       The name of the device whose table
-    *                         will be added (Such as wlan or wwan)
+    * @param destinationAddress  The destination address of the
+    *                            custom entry in the main table that
+    *                            will be removed
+    * @return                    True if function is successful.
+    *                            False otherwise.
+    */
+    bool deleteCustomEntryInMainTable
+    (
+      uint8_t *destinationAddress
+    );
+
+    /**
+    * @brief Deletes all custom routes in the main table that route
+    *        through a specific interface name
+    *
+    * The custom routes being deleted should have been added via
+    * addCustomEntryToMainTable()
+    *
+    * @param deviceName       The name of the device whose custom
+    *                         entries in the main table will be
+    *                         removed
     * @return                 True if function is successful. False
     *                         otherwise.
     */
-    bool changeDefaultTable
+    bool deleteDeviceCustomEntriesInMainTable
     (
       uint8_t *deviceName
     );
 
     /**
-    *  @brief Deletes a default entry from the main table.
+    * @brief Deletes a default entry from the main table.
     *
-    *  @param deviceName       The name of the device whose default
-    *                          entry in the main table will be
-    *                          deleted (Such as wlan or wwan)
-    *  @return                 True if function is successful. False
-    *                          otherwise.
+    * @param deviceName       The name of the device whose default
+    *                         entry in the main table will be
+    *                         deleted
+    * @return                 True if function is successful. False
+    *                         otherwise.
     */
-    bool deleteDefaultEntryFromMainTable
+    bool deleteDefaultEntryInMainTable
     (
       uint8_t *deviceName
     );
 
     /**
-    *  @brief Deletes a routing table from the system along with the
-    *         rule corresponding to that table.
+    * @brief Deletes a routing table from the system along with the
+    *        rule corresponding to that table.
     *
-    *  @param deviceName       The name of the device whose table will be
-    *                          deleted (Such as wlan or wwan)
-    *  @return                 True if function is successful. False
-    *                          otherwise.
+    * The table being deleted should have been added via
+    * addRoutingTable()
+    *
+    * @param deviceName       The name of the device whose table will be
+    *                         deleted
+    * @return                 True if function is successful. False
+    *                         otherwise.
     */
     bool deleteRoutingTable
     (
       uint8_t *deviceName
     );
 
+    /**
+    * @brief Change the default routing table that is associated
+    *        with any source addresses not bound to another table.
+    *
+    * The user of this function passes in the name of the network
+    * interface that matches the name already defined in the Android
+    * system. That device will become the new default. If this radio
+    * is already the default, this function simply returns true.
+    *
+    * @param deviceName       The name of the device whose table
+    *                         will be added
+    * @return                 True if function is successful. False
+    *                         otherwise.
+    */
+    bool replaceDefaultEntryInMainTable
+    (
+      uint8_t *deviceName
+    );
 
     /**
-    *  Displays the contents of all routing tables for debugging
-    *  purposes.
+    * Displays the contents of all routing tables for debugging
+    * purposes.
     *
-    *  @return                 True if function is successful. False
-    *                          otherwise.
+    * @return                 True if function is successful. False
+    *                         otherwise.
     */
     bool showAllRoutingTables
     (
@@ -163,13 +230,12 @@ class cnd_iproute2
     );
 
     /**
-    *  Displays the contents of the routing table associated with
-    *  the inputted device name.
+    * Displays the contents of the routing table associated with
+    * the inputted device name.
     *
-    *  @param deviceName       The name of the device to be displayed
-    *                          (Usually wlan or wwan)
-    *  @return                 True if function is successful. False
-    *                          otherwise.
+    * @param deviceName       The name of the device to be displayed
+    * @return                 True if function is successful. False
+    *                         otherwise.
     */
     bool showRoutingTable
     (
@@ -177,11 +243,11 @@ class cnd_iproute2
     );
 
     /**
-    *  Displays the rules associated with all tables for debugging
-    *  purposes.
+    * Displays the rules associated with all tables for debugging
+    * purposes.
     *
-    *  @return                 True if function is successful. False
-    *                          otherwise.
+    * @return                 True if function is successful. False
+    *                         otherwise.
     */
     bool showRules
     (

@@ -226,9 +226,9 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
       } else if (cmd == CNE_IPROUTE2_DELETE_DEFAULT) {
         cnd_iproute2::getInstance()->deleteRoutingTable(ifName);
       } else if (cmd == CNE_IPROUTE2_DELETE_DEFAULT_FROM_MAIN) {
-        cnd_iproute2::getInstance()->deleteDefaultEntryFromMainTable(ifName);
+        cnd_iproute2::getInstance()->deleteDefaultEntryInMainTable(ifName);
       } else if (cmd == CNE_IPROUTE2_CHANGE_DEFAULT_FROM_MAIN) {
-        cnd_iproute2::getInstance()->changeDefaultTable(ifName);
+        cnd_iproute2::getInstance()->replaceDefaultEntryInMainTable(ifName);
       }
     }
     return;
