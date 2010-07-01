@@ -3,6 +3,7 @@
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
+include external/stlport/libstlport.mk
 
 #this is needed to make sure that the path for stlport is specified before stdc++
 LOCAL_NO_DEFAULT_COMPILER_FLAGS :=true
@@ -19,6 +20,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libcutils \
         libhardware_legacy \
+        libstlport
 
 LOCAL_C_INCLUDES := \
         external/connectivity/cnd/inc  \
@@ -26,12 +28,15 @@ LOCAL_C_INCLUDES := \
         external/stlport/stlport \
         system/core/include \
         frameworks/base/include \
+        bionic \
         bionic/libc/arch-arm/include \
         bionic/libc/include \
         bionic/libstdc++/include \
         bionic/libc/kernel/common \
         bionic/libc/kernel/arch-arm \
         bionic/libm/include
+
+
 
 LOCAL_CFLAGS+= -fno-exceptions -fno-short-enums -include system/core/include/arch/linux-arm/AndroidConfig.h -DANDROID
 
