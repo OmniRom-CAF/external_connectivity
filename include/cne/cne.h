@@ -263,8 +263,12 @@ typedef enum
   CNE_NET_SUBTYPE_HSUPA,
   /* Sub type HSPA */
   CNE_NET_SUBTYPE_HSPA,
+  /* Sub type IDEN */
+  CNE_NET_SUBTYPE_IDEN,
+  /* Sub type EVDO Rev B */
+  CNE_NET_SUBTYPE_EVDO_B,
   /* Sub type 802.11 B */
-  CNE_NET_SUBTYPE_WLAN_B,
+  CNE_NET_SUBTYPE_WLAN_B = 20,
   /* Sub type 802.11 G */
   CNE_NET_SUBTYPE_WLAN_G
 
