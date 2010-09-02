@@ -28,6 +28,9 @@
     {CNE_NOTIFY_DEFAULT_NW_PREF_CMD, dispatchInts, responseVoid},
     {CNE_REQUEST_UPDATE_WLAN_SCAN_RESULTS_CMD, dispatchWlanScanResults, responseVoid},
     {CNE_NOTIFY_SENSOR_EVENT_CMD, dispatchVoid, responseVoid},
-    {CNE_REQUEST_CONFIG_IPROUTE2_CMD, dispatchIproute2Cmd, responseVoid}
+    {CNE_REQUEST_CONFIG_IPROUTE2_CMD, dispatchIproute2Cmd, responseVoid},
+    {CNE_NOTIFY_TIMER_EXPIRED_CMD, dispatchVoid, responseVoid},
+    {CNE_REQUEST_START_FMC_CMD, dispatchString, responseVoid},
+    {CNE_REQUEST_STOP_FMC_CMD, dispatchVoid, responseVoid}
 
 

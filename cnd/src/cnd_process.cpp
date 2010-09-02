@@ -221,16 +221,35 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
     cnd_iproute2* cnd_iproute2_ptr = cnd_iproute2::getInstance();
     if (cnd_iproute2_ptr != NULL) {
       // Call iproute2 API
-      if (cmd == CNE_IPROUTE2_ADD_DEFAULT) {
+      switch(cmd)
+      {
+      case CNE_IPROUTE2_ADD_ROUTING:
         cnd_iproute2::getInstance()->addRoutingTable(ifName, ipAddr, gatewayAddr);
-      } else if (cmd == CNE_IPROUTE2_DELETE_DEFAULT) {
+        break;
+      case CNE_IPROUTE2_DELETE_ROUTING:
+      case CNE_IPROUTE2_DELETE_HOST_ROUTING:
         cnd_iproute2::getInstance()->deleteRoutingTable(ifName);
-      } else if (cmd == CNE_IPROUTE2_DELETE_DEFAULT_FROM_MAIN) {
+        break;
+      case CNE_IPROUTE2_DELETE_DEFAULT_IN_MAIN:
+      case CNE_IPROUTE2_DELETE_HOST_DEFAULT_IN_MAIN:
         cnd_iproute2::getInstance()->deleteDefaultEntryInMainTable(ifName);
-      } else if (cmd == CNE_IPROUTE2_CHANGE_DEFAULT_FROM_MAIN) {
+        break;
+      case CNE_IPROUTE2_REPLACE_DEFAULT_ENTRY_IN_MAIN:
+      case CNE_IPROUTE2_REPLACE_HOST_DEFAULT_ENTRY_IN_MAIN:
         cnd_iproute2::getInstance()->replaceDefaultEntryInMainTable(ifName);
+        break;
+      case CNE_IPROUTE2_ADD_HOST_IN_MAIN:
+        cnd_iproute2::getInstance()->addCustomEntryInMainTable(ipAddr, ifName, gatewayAddr);
+        break;
+      case CNE_IPROUTE2_DELETE_HOST_IN_MAIN:
+        cnd_iproute2::getInstance()->deleteDeviceCustomEntriesInMainTable(ifName);
+        break;
+      default:
+        LOGE ("processCommand: not iproute2 command=%d", command);
+        break;
       }
     }
+
     return;
 
   }
@@ -294,8 +313,9 @@ dispatchString (Parcel& p, RequestInfo *pRI)
 
     string8 = strdupReadString(p);
 
-    processCommand(pRI->pCI->commandNumber, string8,
-                       sizeof(char *), pRI);
+    LOGD ("dispatchString: strlen=%d", strlen(string8));
+    processCommand(pRI->pCI->commandNumber, string8, strlen(string8), pRI);
+
 
 #ifdef MEMSET_FREED
     memsetString(string8);

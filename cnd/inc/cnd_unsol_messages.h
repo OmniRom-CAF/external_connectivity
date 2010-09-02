@@ -25,5 +25,6 @@
     {CNE_NOTIFY_MORE_PREFERED_RAT_AVAIL_MSG, evtMorePrefNw},
     {CNE_NOTIFY_RAT_LOST_MSG, responseInts},
     {CNE_REQUEST_START_SCAN_WLAN_MSG, responseVoid},
-    {CNE_NOTIFY_INFLIGHT_STATUS_MSG, responseInts}
-
+    {CNE_NOTIFY_INFLIGHT_STATUS_MSG, responseInts},
+    {CNE_NOTIFY_FMC_STATUS_MSG, responseInts},
+    {CNE_NOTIFY_HOST_ROUTING_IP_MSG, responseString}

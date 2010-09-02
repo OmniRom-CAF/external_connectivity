@@ -130,7 +130,9 @@ typedef enum
   CNE_NOTIFY_SENSOR_EVENT_CMD,
   CNE_REQUEST_CONFIG_IPROUTE2_CMD,
 
-  CNE_NOTIFY_TIMER_EXPIRED_CMD
+  CNE_NOTIFY_TIMER_EXPIRED_CMD,
+  CNE_REQUEST_START_FMC_CMD,
+  CNE_REQUEST_STOP_FMC_CMD
   /*  Add other commands here, note these should match with the ones in the
    *  java layer.
    */
@@ -161,7 +163,9 @@ typedef enum
   CNE_NOTIFY_RAT_LOST_MSG,
     /**< Notification sent to clients when the RAT they are using is lost.*/
   CNE_REQUEST_START_SCAN_WLAN_MSG,
-  CNE_NOTIFY_INFLIGHT_STATUS_MSG
+  CNE_NOTIFY_INFLIGHT_STATUS_MSG,
+  CNE_NOTIFY_FMC_STATUS_MSG,
+  CNE_NOTIFY_HOST_ROUTING_IP_MSG
 
 
 } cne_msg_enum_type;
@@ -180,11 +184,30 @@ typedef enum // correspond to network State defined in NetworkInfo.java
 
 typedef enum
 {
-  CNE_IPROUTE2_ADD_DEFAULT = 0,
-  CNE_IPROUTE2_DELETE_DEFAULT,
-  CNE_IPROUTE2_DELETE_DEFAULT_FROM_MAIN,
-  CNE_IPROUTE2_CHANGE_DEFAULT_FROM_MAIN
+  CNE_IPROUTE2_ADD_ROUTING = 0,
+  CNE_IPROUTE2_DELETE_ROUTING,
+  CNE_IPROUTE2_DELETE_DEFAULT_IN_MAIN,
+  CNE_IPROUTE2_REPLACE_DEFAULT_ENTRY_IN_MAIN,
+  CNE_IPROUTE2_ADD_HOST_IN_MAIN,
+  CNE_IPROUTE2_REPLACE_HOST_DEFAULT_ENTRY_IN_MAIN,
+  CNE_IPROUTE2_DELETE_HOST_ROUTING,
+  CNE_IPROUTE2_DELETE_HOST_DEFAULT_IN_MAIN,
+  CNE_IPROUTE2_DELETE_HOST_IN_MAIN
 } cne_iproute2_cmd_enum_type;
+
+typedef enum
+{
+  CNE_FMC_STATUS_ENABLED = 0,
+  CNE_FMC_STATUS_CLOSED,
+  CNE_FMC_STATUS_INITIALIZED,
+  CNE_FMC_STATUS_SHUTTING_DOWN,
+  CNE_FMC_STATUS_NOT_YET_STARTED,
+  CNE_FMC_STATUS_FAILURE,
+  CNE_FMC_STATUS_NOT_AVAIL,
+  CNE_FMC_STATUS_DS_NOT_AVAIL,
+  CNE_FMC_STATUS_RETRIED,
+  CNE_FMC_STATUS_MAX
+} cne_fmc_status_enum_type;
 
 /** Role Id Type. */
 typedef int32_t cne_role_id_type;
@@ -451,6 +474,16 @@ typedef struct
   uint8_t is_flying;
   /**< true if in flight else false */
 } cne_inflight_status_change_evt_data_type;
+
+
+/**
+  Info structure returned for the event
+  CNE_NOTIFY_FMC_STATUS_MSG
+ */
+typedef struct
+{
+  uint8_t status;
+} cne_fmc_status_evt_data_type;
 
 typedef union {
     cne_rat_type rat;
