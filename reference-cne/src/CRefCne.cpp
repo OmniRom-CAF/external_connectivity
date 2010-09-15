@@ -258,14 +258,14 @@ void CRefCne::ProcessStateChange
                 RCNE_MSG_DEBUG("PSC: pref network [%d]  is now available,"
                                " turning off non-pref network",myPrefNet);
                 pref->ClearPending();
-                nonpref->TurnOff();
-                nonpref->SetPending(REF_CNE_NET_PENDING_DISCONNECT);
               }
               else
               {
                 RCNE_MSG_DEBUG("PSC: unexpected bringup of non-pref network"
                                "  -- special case ?");
-              }
+	      }
+	      nonpref->TurnOff();
+              nonpref->SetPending(REF_CNE_NET_PENDING_DISCONNECT);
             }
         }
       }
