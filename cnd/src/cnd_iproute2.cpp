@@ -81,7 +81,10 @@ enum Cmd_line_actions
 struct routingTableMapComparator {
   bool operator() (const uint8_t *string1, const uint8_t *string2) const
   {
-    return (strcmp((char *)string1, (char *)string2) < 0);
+    if (string1 && string2) {
+        return (strcmp((char *)string1, (char *)string2) < 0);
+    }
+    return false;
   }
 };
 
