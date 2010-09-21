@@ -27,10 +27,10 @@
 int main (int argc, char **argv)
 {
   char prop_value[PROPERTY_VALUE_MAX] = {'\0'};
-  int len = property_get("persist.cne.UseCne", prop_value, "FALSE");
+  int len = property_get("persist.cne.UseCne", prop_value, "none");
   prop_value[len] = '\0';
-  if((strcmp(prop_value, "TRUE") == 0) ||
-     (strcmp(prop_value, "true") == 0))
+  if((strcasecmp(prop_value, "vendor") == 0) ||
+     (strcasecmp(prop_value, "reference") == 0))
   {
     cnd_init();
     cnd_startEventLoop();
