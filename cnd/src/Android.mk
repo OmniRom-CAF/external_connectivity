@@ -21,8 +21,6 @@ LOCAL_C_INCLUDES := \
         external/connectivity/cnd/inc  \
         external/connectivity/include/cne
 
-LOCAL_CFLAGS := -UNDEBUG -DDEBUG
-
 include external/connectivity/stlport/libstlport.mk
 
 include $(BUILD_EXECUTABLE)
