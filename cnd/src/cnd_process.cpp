@@ -15,6 +15,7 @@
 ** limitations under the License.
 */
 #define LOG_TAG "CND_PROCESS"
+#define LOCAL_TAG "CND_PROCESS_DEBUG"
 
 #include <cutils/sockets.h>
 #include <cutils/jstring.h>
@@ -48,7 +49,6 @@
 #include <cnd.h>
 #include <cne.h>
 #include <cnd_iproute2.h>
-
 
 
 namespace android {
@@ -182,7 +182,7 @@ void cnd_sendUnsolicitedMsg(int targetFd, int msgType, int dataLen, void *data)
   else
 	fd = targetFd;
 
-  LOGD ("cnd_sendUnsolicitedMsg: Fd=%d, msgType=%d, datalen=%d\n",
+  CNE_LOGV ("cnd_sendUnsolicitedMsg: Fd=%d, msgType=%d, datalen=%d\n",
         targetFd, msgType, dataLen);
 
   unsolicitedMessage(msgType, data, dataLen, fd);
@@ -194,7 +194,7 @@ static void
 processCommand (int command, void *data, size_t datalen, CND_Token t)
 {
 
-  LOGD ("processCommand: command=%d, datalen=%d", command, datalen);
+  CNE_LOGV ("processCommand: command=%d, datalen=%d", command, datalen);
 
   /* Special handling for iproute2 command to setup iproute2 table */
   if ((command == CNE_REQUEST_CONFIG_IPROUTE2_CMD) && (cneServiceEnabled))
@@ -206,7 +206,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
     unsigned char *ifName = NULL;
 
     if ((data == NULL) || (datalen ==0)) {
-      LOGE ("processCommand: invalid data");
+      CNE_LOGD ("processCommand: invalid data");
       return;
     }
 
@@ -215,7 +215,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
     ipAddr = ((unsigned char **)data)[2];
     gatewayAddr = ((unsigned char **)data)[3];
  
-    LOGD ("processCommand: iproute2cmd=%d, ipAddr=%s, gatewayAddr=%s, "
+    CNE_LOGV ("processCommand: iproute2cmd=%d, ipAddr=%s, gatewayAddr=%s, "
           "ifName=%s", cmd, ipAddr, gatewayAddr, ifName);
 
     cnd_iproute2* cnd_iproute2_ptr = cnd_iproute2::getInstance();
@@ -245,7 +245,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
         cnd_iproute2::getInstance()->deleteDeviceCustomEntriesInMainTable(ifName);
         break;
       default:
-        LOGE ("processCommand: not iproute2 command=%d", command);
+        CNE_LOGD ("processCommand: not iproute2 command=%d", command);
         break;
       }
     }
@@ -260,7 +260,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
   }
   else
   {
-    LOGE("cne_processCommand is NULL");
+    CNE_LOGD("cne_processCommand is NULL");
   }
   cnd_commandComplete(t, CND_E_SUCCESS, NULL, 0);
   return;
@@ -313,7 +313,7 @@ dispatchString (Parcel& p, RequestInfo *pRI)
 
     string8 = strdupReadString(p);
 
-    LOGD ("dispatchString: strlen=%d", strlen(string8));
+    CNE_LOGV ("dispatchString: strlen=%d", strlen(string8));
     processCommand(pRI->pCI->commandNumber, string8, strlen(string8), pRI);
 
 
@@ -337,7 +337,7 @@ dispatchStrings (Parcel &p, RequestInfo *pRI)
     status = p.readInt32 (&countStrings);
 
     if (status != NO_ERROR){
-      LOGE ("dispatchStrings: invalid block");
+      CNE_LOGD ("dispatchStrings: invalid block");
       return;
     }
 
@@ -389,7 +389,7 @@ dispatchInts (Parcel &p, RequestInfo *pRI)
     status = p.readInt32 (&count);
 
     if (status != NO_ERROR || count == 0) {
-        LOGE ("dispatchInts: invalid block");
+        CNE_LOGD ("dispatchInts: invalid block");
         return;
     }
 
@@ -397,7 +397,7 @@ dispatchInts (Parcel &p, RequestInfo *pRI)
     pInts = (int *)alloca(datalen);
 
     if (pInts == NULL) {
-        LOGE ("dispatchInts: alloc failed");
+        CNE_LOGW ("dispatchInts: alloc failed");
         return;
     }
 
@@ -408,7 +408,7 @@ dispatchInts (Parcel &p, RequestInfo *pRI)
         pInts[i] = (int)t;
 
         if (status != NO_ERROR) {
-            LOGE ("dispatchInts: invalid block");
+            CNE_LOGD ("dispatchInts: invalid block");
             return;
         }
    }
@@ -445,12 +445,12 @@ dispatchWlanInfo(Parcel &p, RequestInfo *pRI)
     args.timeStamp = strdupReadString(p);
 
     if (status != NO_ERROR){
-      LOGE ("dispatchWlanInfo: invalid block");
+      CNE_LOGD ("dispatchWlanInfo: invalid block");
       return;
     }
 
 
-    LOGD ("dispatchWlanInfo: state=%ld, rssi=%ld, ssid=%s, ipAddr=%s, "
+    CNE_LOGV ("dispatchWlanInfo: state=%d, rssi=%d, ssid=%s, ipAddr=%s, "
           "timeStamp=%s",
           args.status, args.rssi, args.ssid, args.ipAddr, args.timeStamp);
 
@@ -470,7 +470,7 @@ dispatchWlanScanResults(Parcel &p, RequestInfo *pRI)
     status = p.readInt32 (&t);
 
     if (status != NO_ERROR){
-      LOGE ("dispatchWlanScanResults: invalid block");
+      CNE_LOGD ("dispatchWlanScanResults: invalid block");
       return;
     }
 
@@ -489,7 +489,7 @@ dispatchWlanScanResults(Parcel &p, RequestInfo *pRI)
         args.scanList[i].capabilities = strdupReadString(p);
 
         if (status != NO_ERROR){
-          LOGE ("dispatchWlanScanResults: invalid block");
+          CNE_LOGD ("dispatchWlanScanResults: invalid block");
           return;
         }
     }
@@ -521,11 +521,11 @@ dispatchWwanInfo(Parcel &p, RequestInfo *pRI)
     args.timeStamp = strdupReadString(p);
 
     if (status != NO_ERROR){
-      LOGE ("dispatchWwanInfo: invalid block");
+      CNE_LOGD ("dispatchWwanInfo: invalid block");
       return;
     }
 
-    LOGD ("dispatchWwanInfo: type=%ld, state=%ld, rssi=%ld, roaming=%ld, "
+    CNE_LOGV ("dispatchWwanInfo: type=%d, state=%d, rssi=%d, roaming=%d, "
           "ipAddr=%s, timeStamp=%s", args.type, args.status, args.rssi,
           args.roaming, args.ipAddr, args.timeStamp);
 
@@ -550,11 +550,11 @@ dispatchRatStatus(Parcel &p, RequestInfo *pRI)
     args.ipAddr = strdupReadString(p);
 
     if (status != NO_ERROR){
-        LOGE ("dispatchRatStatus: invalid block");
+        CNE_LOGD ("dispatchRatStatus: invalid block");
         return;
     }
 
-    LOGD ("dispatchRatStatus: type=%ld, ratStatus=%ld, ipAddr=%s",
+    CNE_LOGV ("dispatchRatStatus: type=%d, ratStatus=%d, ipAddr=%s",
           args.rat, args.ratStatus, args.ipAddr);
 
 
@@ -579,12 +579,12 @@ dispatchIproute2Cmd(Parcel &p, RequestInfo *pRI)
     args.gatewayAddr = strdupReadString(p);
 
     if ((status != NO_ERROR) || (args.ifName == NULL)) {
-        LOGE ("dispatchIproute2Cmd: invalid block");
+        CNE_LOGD ("dispatchIproute2Cmd: invalid block");
         return;
     }
 
 
-    LOGD ("dispatchIproute2Cmd: cmd=%ld, ifName=%s, ipAddr=%s, gatewayAddr=%s",
+    CNE_LOGV ("dispatchIproute2Cmd: cmd=%d, ifName=%s, ipAddr=%s, gatewayAddr=%s",
           args.cmd, args.ifName, args.ipAddr, args.gatewayAddr);
 
     processCommand(pRI->pCI->commandNumber, &args, sizeof(args), pRI);
@@ -611,7 +611,7 @@ dispatchRaw(Parcel &p, RequestInfo *pRI)
     status = p.readInt32(&len);
 
     if (status != NO_ERROR){
-       LOGE ("dispatchRaw: invalid block");
+       CNE_LOGD ("dispatchRaw: invalid block");
        return;
    }
 
@@ -636,7 +636,7 @@ writeData(int fd, const void *buffer, size_t len)
 
     toWrite = (const uint8_t *)buffer;
 
-    LOGD ("writeData: len=%d",len);
+    CNE_LOGV ("writeData: len=%d",len);
     while (writeOffset < len) {
         ssize_t written;
         do {
@@ -647,7 +647,7 @@ writeData(int fd, const void *buffer, size_t len)
         if (written >= 0) {
             writeOffset += written;
         } else {   // written < 0
-            LOGE ("writeData: unexpected error on write errno:%d", errno);
+            CNE_LOGD ("writeData: unexpected error on write errno:%d", errno);
             close(fd);
             return -1;
         }
@@ -668,7 +668,7 @@ sendResponseRaw (const void *data, size_t dataSize, int fdCommand)
     }
 
     if (dataSize > MAX_COMMAND_BYTES) {
-        LOGE("sendResponseRaw: packet larger than %u (%u)",
+        CNE_LOGD("sendResponseRaw: packet larger than %u (%u)",
                 MAX_COMMAND_BYTES, (unsigned int )dataSize);
 
         return -1;
@@ -711,11 +711,11 @@ responseInts(Parcel &p, void *response, size_t responselen)
     int numInts;
 
     if (response == NULL && responselen != 0) {
-        LOGE("invalid response: NULL");
+        CNE_LOGD("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
     if (responselen % sizeof(int) != 0) {
-        LOGE("invalid response length %d expected multiple of %d\n",
+        CNE_LOGD("invalid response length %d expected multiple of %d\n",
             (int)responselen, (int)sizeof(int));
         return CND_E_INVALID_RESPONSE;
     }
@@ -742,11 +742,11 @@ static int responseStrings(Parcel &p, void *response, size_t responselen)
     int numStrings;
 
     if (response == NULL && responselen != 0) {
-        LOGE("invalid response: NULL");
+        CNE_LOGD("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
     if (responselen % sizeof(char *) != 0) {
-        LOGE("invalid response length %d expected multiple of %d\n",
+        CNE_LOGD("invalid response length %d expected multiple of %d\n",
             (int)responselen, (int)sizeof(char *));
         return CND_E_INVALID_RESPONSE;
     }
@@ -777,7 +777,7 @@ static int responseStrings(Parcel &p, void *response, size_t responselen)
 static int responseString(Parcel &p, void *response, size_t responselen)
 {
 
-    LOGD ("responseString called");
+    CNE_LOGV("responseString called");
    /* one string only */
     writeStringToParcel(p, (const char *)response);
 
@@ -792,7 +792,7 @@ static int responseVoid(Parcel &p, void *response, size_t responselen)
 static int responseRaw(Parcel &p, void *response, size_t responselen)
 {
     if (response == NULL && responselen != 0) {
-        LOGE("invalid response: NULL with responselen != 0");
+        CNE_LOGD("invalid response: NULL with responselen != 0");
         return CND_E_INVALID_RESPONSE;
     }
 
@@ -812,7 +812,7 @@ static int rspCompatibleNws(Parcel &p, void *response, size_t responselen)
 {
     if (response == NULL && responselen != 0)
     {
-        LOGE("invalid response: NULL");
+        CNE_LOGD("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
 
@@ -836,7 +836,7 @@ static int evtMorePrefNw(Parcel &p, void *response, size_t responselen)
 {
     if (response == NULL && responselen != 0)
     {
-        LOGE("invalid response: NULL");
+        CNE_LOGD("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
 
@@ -855,7 +855,7 @@ static int eventRatChange(Parcel &p, void *response, size_t responselen)
 {
     if (response == NULL && responselen != 0)
     {
-        LOGE("invalid response: NULL");
+        CNE_LOGD("invalid response: NULL");
         return CND_E_INVALID_RESPONSE;
     }
 
@@ -926,7 +926,7 @@ static void unsolicitedMessage(int unsolMessage, void *data, size_t datalen, int
     int ret;
 
     if (s_registerCalled == 0) {
-        LOGW("unsolicitedMessage called before cnd_init ignored");
+        CNE_LOGD("unsolicitedMessage called before cnd_init ignored");
         return;
     }
 
@@ -940,7 +940,7 @@ static void unsolicitedMessage(int unsolMessage, void *data, size_t datalen, int
 
     if (ret != 0) {
         // Problem with the response. Don't continue;
-        LOGE("unsolicitedMessage: problem with response");
+        CNE_LOGD("unsolicitedMessage: problem with response");
 	    return;
     }
 
@@ -967,12 +967,12 @@ processCommandBuffer(void *buffer, size_t buflen, int fd)
     status = p.readInt32 (&token);
 
     if (status != NO_ERROR) {
-        LOGE("processCommandBuffer: invalid request block");
+        CNE_LOGD("processCommandBuffer: invalid request block");
         return -1;
     }
 
     if (request < 1 || request >= (int32_t)NUM_ELEMS(s_commands)) {
-        LOGE("processCommandBuffer: unsupported request code %d token %d",
+        CNE_LOGD("processCommandBuffer: unsupported request code %d token %d",
              request, token);
         return -1;
     }
@@ -980,7 +980,7 @@ processCommandBuffer(void *buffer, size_t buflen, int fd)
     pRI = (RequestInfo *)calloc(1, sizeof(RequestInfo));
 
     if (pRI == NULL) {
-      LOGE("processCommandBuffer: calloc failed");
+      CNE_LOGW("processCommandBuffer: calloc failed");
       return -1;
     }
 
@@ -1014,9 +1014,9 @@ static void processCommandsCallback(int fd, void *param)
     for (;;) {
         /* loop until EAGAIN/EINTR, end of stream, or other error */
         ret = record_stream_get_next(p_rs, &p_record, &recordlen);
-        LOGD ("processCommandsCallback: len=%d, ret=%d", recordlen, ret);
+        CNE_LOGV ("processCommandsCallback: len=%d, ret=%d", recordlen, ret);
         if (ret == 0 && p_record == NULL) {
-	        LOGD ("processCommandsCallback: end of stream");
+	        CNE_LOGV ("processCommandsCallback: end of stream");
             break;
         } else if (ret < 0) {
             break;
@@ -1029,9 +1029,9 @@ static void processCommandsCallback(int fd, void *param)
     if (ret == 0 || !(errno == EAGAIN || errno == EINTR)) {
         /* fatal error or end-of-stream */
         if (ret != 0) {
-            LOGE("error on reading command socket errno:%d\n", errno);
+            CNE_LOGD("error on reading command socket errno:%d\n", errno);
         } else {
-            LOGW("EOS.  Closing command socket.");
+            CNE_LOGD("EOS.  Closing command socket.");
         }
         close(s_fdCommand);
         s_fdCommand = -1;
@@ -1064,7 +1064,7 @@ static void listenCallback (int fd, void *param)
     s_fdCommand = accept(s_fdListen, (sockaddr *) &peeraddr, &socklen);
 
     if (s_fdCommand < 0 ) {
-      LOGE("Error on accept() errno:%d", errno);
+      CNE_LOGD("Error on accept() errno:%d", errno);
       /* start listening for new connections again */
       cnd_event_add(&s_listen_event);
 	  return;
@@ -1076,17 +1076,17 @@ static void listenCallback (int fd, void *param)
     ret = fcntl(s_fdCommand, F_SETFL, O_NONBLOCK);
 
     if (ret < 0) {
-      LOGE ("Error setting O_NONBLOCK errno = %d", errno);
+      CNE_LOGD("Error setting O_NONBLOCK errno = %d", errno);
     }
 
-    LOGI("listenCallback: accept new connection, fd=%d", s_fdCommand);
+    CNE_LOGV("listenCallback: accept new connection, fd=%d", s_fdCommand);
 
     p_rs = record_stream_new(s_fdCommand, MAX_COMMAND_BYTES);
 
     // note: persistent = 1, not removed from table
     if (command_index >= MAX_FD_EVENTS)
     {
-      LOGE ("Error: exceeding number of supported connection");
+      CNE_LOGD ("Error: exceeding number of supported connection");
 	  return;
     }
     cnd_event_set (&s_commands_event[command_index], s_fdCommand, 1,
@@ -1106,7 +1106,7 @@ eventLoop(void *param)
     int ret;
     int filedes[2];
 
-    LOGD ("eventLoop: s_started=%d", s_started);
+    CNE_LOGV ("eventLoop: s_started=%d", s_started);
 
     pthread_mutex_lock(&s_startupMutex);
 
@@ -1142,7 +1142,7 @@ cnd_startEventLoop(void)
     pthread_mutex_unlock(&s_startupMutex);
 
     if (ret < 0) {
-        LOGE("Failed to create dispatch thread errno:%d", errno);
+        CNE_LOGD("Failed to create dispatch thread errno:%d", errno);
         return;
     }
 }
@@ -1153,7 +1153,7 @@ cnd_init (void)
     int ret;
 
     if (s_registerCalled > 0) {
-        LOGE("cnd_init has been called more than once. "
+        CNE_LOGD("cnd_init has been called more than once. "
                 "Subsequent call ignored");
         return;
     }
@@ -1166,19 +1166,19 @@ cnd_init (void)
     }
     else
     {
-      LOGE("cne_regMessageCb is NULL");
+      CNE_LOGD("cne_regMessageCb is NULL");
     }
 
     s_fdListen = android_get_control_socket(SOCKET_NAME_CND);
     if (s_fdListen < 0) {
-        LOGE("Failed to get socket '" SOCKET_NAME_CND "'");
+        CNE_LOGD("Failed to get socket '" SOCKET_NAME_CND "'");
         exit(-1);
     }
 
     ret = listen(s_fdListen, 4);
 
     if (ret < 0) {
-        LOGE("Failed to listen on control socket '%d': %s",
+        CNE_LOGD("Failed to listen on control socket '%d': %s",
              s_fdListen, strerror(errno));
         exit(-1);
     }
@@ -1201,7 +1201,7 @@ cnd_commandComplete(CND_Token t, CND_Errno e, void *response, size_t responselen
     pRI = (RequestInfo *)t;
 
     if (!checkAndDequeueRequestInfo(pRI)) {
-        LOGE ("cnd_commandComplete: invalid Token");
+        CNE_LOGD ("cnd_commandComplete: invalid Token");
         return;
     }
 
@@ -1222,11 +1222,11 @@ cnd_commandComplete(CND_Token t, CND_Errno e, void *response, size_t responselen
                 p.writeInt32 (ret);
             }
         } else {
-            LOGE ("cnd_commandComplete: Error");
+            CNE_LOGD ("cnd_commandComplete: Error");
         }
 
         if (pRI->fd < 0) {
-            LOGE ("cnd_commandComplete: Command channel closed");
+            CNE_LOGD ("cnd_commandComplete: Command channel closed");
         }
         sendResponse(p, pRI->fd);
     }

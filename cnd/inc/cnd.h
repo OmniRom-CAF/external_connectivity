@@ -19,7 +19,25 @@
 
 #include <stdlib.h>
 #include <sys/time.h>
+#include <utils/Log.h>
 #include "cne.h"
+
+#define CNE_DEBUG_LOGGING 0
+
+#define CNE_LOGE(...) LOGE(__VA_ARGS__)
+#define CNE_LOGW(...) LOGW(__VA_ARGS__)
+#define CNE_LOGI(...) \
+    ( (CONDITION(CNE_DEBUG_LOGGING)) \
+    ? LOG(LOG_INFO, LOCAL_TAG, __VA_ARGS__) \
+    : (void)0 )
+#define CNE_LOGD(...) \
+    ( (CONDITION(CNE_DEBUG_LOGGING)) \
+    ? LOG(LOG_DEBUG, LOCAL_TAG, __VA_ARGS__) \
+    : (void)0 )
+#define CNE_LOGV(...) \
+    ( (CONDITION(CNE_DEBUG_LOGGING)) \
+    ? LOG(LOG_VERBOSE, LOCAL_TAG, __VA_ARGS__) \
+    : (void)0 )
 
 #ifdef __cplusplus
 extern "C" {

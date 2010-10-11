@@ -16,6 +16,7 @@
 */
 
 #define LOG_TAG "CND_EVENT"
+#define LOCAL_TAG "CND_EVENT_DEBUG"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -30,6 +31,7 @@
 #include <dlfcn.h>
 #include "cutils/properties.h"
 #include "cne.h"
+#include "cnd.h"
 
 static pthread_mutex_t listMutex;
 #define MUTEX_ACQUIRE() pthread_mutex_lock(&listMutex)
@@ -76,7 +78,7 @@ static void removeFromList(struct cnd_event * ev)
 static void removeWatch(struct cnd_event * ev, int index)
 {
 
-    LOGD ("removeWatch: fd=%d, index=%d", ev->fd, index);
+    CNE_LOGV("removeWatch: fd=%d, index=%d", ev->fd, index);
 
     watch_table[index] = NULL;
     ev->index = -1;
@@ -101,7 +103,7 @@ static void removeWatch(struct cnd_event * ev, int index)
 static void processReadReadyEvent(fd_set * rfds, int n)
 {
 
-    LOGD ("processReadReadyEvent: n=%d, rfds0=%ld", n, rfds->fds_bits[0]);
+    CNE_LOGV("processReadReadyEvent: n=%d, rfds0=%ld", n, rfds->fds_bits[0]);
     MUTEX_ACQUIRE();
 
     for (int i = 0; (i < MAX_FD_EVENTS) && (n > 0); i++) {
@@ -109,13 +111,13 @@ static void processReadReadyEvent(fd_set * rfds, int n)
         struct cnd_event * rev = watch_table[i];
 
     if (rev != NULL)
-           LOGD ("processReadReadyEvent: i=%d, fd=%d, rfds0=%ld", i, rev->fd, rfds->fds_bits[0]);
+        CNE_LOGV("processReadReadyEvent: i=%d, fd=%d, rfds0=%ld", i, rev->fd, rfds->fds_bits[0]);
     else
-       LOGD ("processReadReadyEvent: i=%d, rev is NULL", i);
+        CNE_LOGV("processReadReadyEvent: i=%d, rev is NULL", i);
 
         if (rev != NULL && FD_ISSET(rev->fd, rfds)) {
             addToList(rev, &pending_list);
-            LOGD ("processReadReadyEvent: add to pendingList fd=%d", rev->fd);
+            CNE_LOGV("processReadReadyEvent: add to pendingList fd=%d", rev->fd);
             if (rev->persist == 0) {
                  removeWatch(rev, i);
             }
@@ -156,12 +158,12 @@ int cnd_event_init()
     prop_value[len] = '\0';
     if(strcasecmp(prop_value, "vendor") == 0)
     {
-      LOGI("loading vendor cne library!!");
+      CNE_LOGV("loading vendor cne library");
       cneLibHandle = dlopen("/system/lib/libcne.so",RTLD_NOW);
     }
     else
     {
-      LOGI("loading refcne library!!");
+      CNE_LOGV("loading refcne library");
       cneLibHandle = dlopen("/system/lib/librefcne.so",RTLD_NOW);
     }
 
@@ -175,15 +177,15 @@ int cnd_event_init()
     }
     else
     {
-      LOGE("cne library load failed.!!");
+      CNE_LOGV("cne library load failed.");
     }
     if(cne_svc_init == NULL || cne_processCommand == NULL ||
          cne_regMessageCb == NULL)
     {
-      LOGE("dlsym ret'd cne_svc_init=%x cne_processCommand=%x cne_regMessageCb=%x",
-           cne_svc_init,
-           cne_processCommand,
-           cne_regMessageCb);
+      CNE_LOGD("dlsym ret'd cne_svc_init=%x cne_processCommand=%x cne_regMessageCb=%x",
+           (unsigned int)cne_svc_init,
+           (unsigned int)cne_processCommand,
+           (unsigned int)cne_regMessageCb);
     }
     else
     {
@@ -218,13 +220,13 @@ void cnd_event_add(struct cnd_event * ev)
         if (watch_table[i] == NULL) {
             watch_table[i] = ev;
             ev->index = i;
-               LOGD ("cnd_event_add-before: add at i=%d for fd=%d, readFds0=%ld", i, ev->fd, readFds.fds_bits[0]);
+               CNE_LOGV("cnd_event_add-before: add at i=%d for fd=%d, readFds0=%ld", i, ev->fd, readFds.fds_bits[0]);
 
             FD_SET(ev->fd, &readFds);
 
             if (ev->fd >= nfds)
         nfds = ev->fd+1;
-            LOGD ("cnd_event_add-after: add at i=%d for fd=%d, readFds0=%ld", i, ev->fd, readFds.fds_bits[0]);
+            CNE_LOGV("cnd_event_add-after: add at i=%d for fd=%d, readFds0=%ld", i, ev->fd, readFds.fds_bits[0]);
 
             break;
         }
@@ -240,7 +242,7 @@ void cnd_event_del(struct cnd_event * ev)
 {
 
 
-    LOGD ("cnd_event_del: index=%d", ev->index);
+    CNE_LOGV("cnd_event_del: index=%d", ev->index);
     MUTEX_ACQUIRE();
 
     if (ev->index < 0 || ev->index >= MAX_FD_EVENTS) {
@@ -260,7 +262,7 @@ void cnd_dump_watch_table(void)
    for (int i = 0; i < MAX_FD_EVENTS; i++) {
         if (watch_table[i] != NULL) {
             ev = watch_table[i];
-            LOGD ("cnd_dump_watch_table: at i=%d , fd=%d", i, ev->fd);
+            CNE_LOGV("cnd_dump_watch_table: at i=%d , fd=%d", i, ev->fd);
          }
    }
 
@@ -273,26 +275,26 @@ void cnd_event_loop(void)
     fd_set rfds;
     int s_fdCommand;
 
-    LOGD ("cnd_event_loop: started, nfds=%d",nfds);
+    CNE_LOGV("cnd_event_loop: started, nfds=%d",nfds);
 
     for (;;) {
       // make local copy of read fd_set
       memcpy(&rfds, &readFds, sizeof(fd_set));
 
-      LOGD ("cnd_event_loop: waiting for select nfds=%d, rfds0=%ld", nfds, rfds.fds_bits[0]);
+      CNE_LOGV("cnd_event_loop: waiting for select nfds=%d, rfds0=%ld", nfds, rfds.fds_bits[0]);
 
       n = select(nfds, &rfds, NULL, NULL, NULL);
       if (n < 0) {
         if (errno == EINTR)
           continue;
-        LOGE("cnd_event_loop: select error (%d)", errno);
+        CNE_LOGD("cnd_event_loop: select error (%d)", errno);
         return;
       }
 
       if (n == 0)
-        LOGD ("cnd_event_loop: select timedout");
+        CNE_LOGV("cnd_event_loop: select timedout");
       else if (n > 0)
-        LOGD ("cnd_event_loop: select ok,n=%d, rfds0=%ld",n, rfds.fds_bits[0]);
+        CNE_LOGV("cnd_event_loop: select ok,n=%d, rfds0=%ld",n, rfds.fds_bits[0]);
 
       // Check for read-ready events
       processReadReadyEvent(&rfds, n);

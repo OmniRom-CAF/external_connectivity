@@ -53,6 +53,7 @@
 #include <cstdarg>
 #include <map>
 #include <set>
+#include <cnd.h>
 
 using namespace std;
 
@@ -61,7 +62,7 @@ using namespace std;
  * -------------------------------------------------------------------------*/
 #undef LOG_TAG
 #define LOG_TAG "CND_IPROUTE2"
-
+#define LOCAL_TAG "CND_IPROUTE2_DEBUG"
 
 /*----------------------------------------------------------------------------
  * Type Declarations
@@ -454,7 +455,7 @@ uint8_t *cmdLineActionEnumToString
       return (uint8_t *)ACTIONS_SHOW_STR;
       break;
     default:
-      LOGE("Unsupported conversion of command action to string");
+      CNE_LOGD("Unsupported conversion of command action to string");
       return NULL;
   }
 }
@@ -479,7 +480,7 @@ void flushCache
                      CACHED_ENTRIES,
                      NULL))
   {
-    LOGW("Attempt to flush the routing cache failed.");
+    CNE_LOGD("Attempt to flush the routing cache failed.");
   }
 }
 
@@ -502,7 +503,7 @@ uint8_t *storeRoutingInformation
 {
   if(NULL == parameterPtr)
   {
-    LOGE("storeRoutingInformation: Parameter is null.");
+    CNE_LOGD("storeRoutingInformation: Parameter is null.");
     return NULL;
   }
 
@@ -510,7 +511,7 @@ uint8_t *storeRoutingInformation
 
   if (NULL == memCopyPtr)
   {
-    LOGE("storeRoutingInformation: unable to allocate memory");
+    CNE_LOGW("storeRoutingInformation: unable to allocate memory");
     return NULL;
   }
 
@@ -545,13 +546,13 @@ bool modifyCustomRouteInMainTable
   Cmd_line_actions commandAction
 )
 {
-  CustomRouteInfo *currentDevice;
+  CustomRouteInfo *currentDevice = NULL;
   map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
   map<uint8_t*, CustomRouteInfo*>::iterator customRouteMapIter;
 
   if (NULL == destinationAddress)
   {
-    LOGE("Null destination address was passed while modifying a custom route " \
+    CNE_LOGD("Null destination address was passed while modifying a custom route " \
          "in the main table");
     return false;
   }
@@ -560,18 +561,18 @@ bool modifyCustomRouteInMainTable
   {
     case ACTIONS_ADD_ENUM:
     {
-      LOGI("Adding a custom route in the main table to destination %s",
+      CNE_LOGV("Adding a custom route in the main table to destination %s",
            destinationAddress);
 
       if (NULL == deviceName)
       {
-        LOGE("Null device name was passed when adding a custom route");
+        CNE_LOGD("Null device name was passed when adding a custom route");
         return false;
       }
 
       if (NULL == gatewayAddress)
       {
-        LOGI("A null gateway address was passed when adding the entry to %s",
+        CNE_LOGV("A null gateway address was passed when adding the entry to %s",
              destinationAddress);
       }
 
@@ -580,13 +581,13 @@ bool modifyCustomRouteInMainTable
       if ((routingTableMapIter != routingTableMap.end()) &&
           (NULL == routingTableMapIter->second))
       {
-        LOGW("Routing table information has been corrupted for %s table",
+        CNE_LOGD("Routing table information has been corrupted for %s table",
              deviceName);
       }
 
       else if (routingTableMapIter != routingTableMap.end())
       {
-        LOGI("A separate routing table exists for %s. This table will not be " \
+        CNE_LOGV("A separate routing table exists for %s. This table will not be " \
              "updated.", deviceName);
       }
 
@@ -595,7 +596,7 @@ bool modifyCustomRouteInMainTable
       if ((customRouteMapIter != customRouteMap.end()) &&
           (NULL == customRouteMapIter->second))
       {
-        LOGW("Custom route in main table information has been corrupted for %s",
+        CNE_LOGD("Custom route in main table information has been corrupted for %s",
              destinationAddress);
       }
 
@@ -638,13 +639,13 @@ bool modifyCustomRouteInMainTable
         else {
           if (NULL == gatewayAddress)
           {
-            LOGI("Adding duplicate custom route in main table with device %s," \
+            CNE_LOGV("Adding duplicate custom route in main table with device %s," \
                  "destination address %s.", deviceName, destinationAddress);
             return true;
           }
 
           else {
-            LOGI("Adding duplicate custom route in main table with device %s," \
+            CNE_LOGV("Adding duplicate custom route in main table with device %s," \
                  "destination %s, gateway %s",
                  deviceName, destinationAddress, gatewayAddress);
             return true;
@@ -652,7 +653,7 @@ bool modifyCustomRouteInMainTable
         }
       }
       else {
-        LOGI("Device '%s' not found in a custom entry to main table",
+        CNE_LOGV("Device '%s' not found in a custom entry to main table",
              deviceName);
       }
 
@@ -664,7 +665,7 @@ bool modifyCustomRouteInMainTable
           (NULL == currentDevice->getDeviceName()) ||
           (NULL == currentDevice->getDestinationAddress()))
       {
-        LOGE("Failed to allocate new device information while adding custom " \
+        CNE_LOGD("Failed to allocate new device information while adding custom " \
              "entry over interface %s to main table.", deviceName);
         return false;
       }
@@ -674,12 +675,12 @@ bool modifyCustomRouteInMainTable
 
     case ACTIONS_DELETE_ENUM:
     {
-      LOGI("Deleting a custom route in the main table with destination %s",
+      CNE_LOGV("Deleting a custom route in the main table with destination %s",
            destinationAddress);
 
       if (customRouteMap.empty())
       {
-        LOGE("Deleting a custom route in the main table when no route exists.");
+        CNE_LOGD("Deleting a custom route in the main table when no route exists.");
         return false;
       }
 
@@ -687,7 +688,7 @@ bool modifyCustomRouteInMainTable
 
       if (customRouteMapIter == customRouteMap.end())
       {
-        LOGE("Cannot delete custom route over %s that has not been created.",
+        CNE_LOGD("Cannot delete custom route over %s that has not been created.",
              destinationAddress);
         return false;
       }
@@ -695,7 +696,7 @@ bool modifyCustomRouteInMainTable
       currentDevice = customRouteMapIter->second;
       if (NULL == currentDevice)
       {
-        LOGE("Deleting custom route over %s with a stored name and null value",
+        CNE_LOGD("Deleting custom route over %s with a stored name and null value",
              destinationAddress);
         return false;
       }
@@ -707,7 +708,7 @@ bool modifyCustomRouteInMainTable
 
     default:
     {
-      LOGE("Unsupported command action found while modifying a custom route");
+      CNE_LOGD("Unsupported command action found while modifying a custom route");
       return false;
     }
   }
@@ -797,7 +798,7 @@ bool modifyDefaultRoute
     {
       if (NULL == deviceName)
       {
-        LOGE("A null device name was passed while replacing the default table");
+        CNE_LOGD("A null device name was passed while replacing the default table");
         return false;
       }
 
@@ -806,11 +807,11 @@ bool modifyDefaultRoute
       if ((NULL != defaultDevice) &&
           (0 == strcmp((char *)defaultDevice, (char *)deviceName)))
       {
-        LOGI("The new default interface %s is the same as the one known by cnd",
+        CNE_LOGV("The new default interface %s is the same as the one known by cnd",
              deviceName);
       }
 
-      LOGI("Replacing default routing table with %s", deviceName);
+      CNE_LOGV("Replacing default routing table with %s", deviceName);
 
       bool foundMatchingEntry = false;
       map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
@@ -823,13 +824,13 @@ bool modifyDefaultRoute
       {
         if (NULL == routingTableMapIter->second)
         {
-          LOGW("Routing table for new default %s has corrupt stored values",
+          CNE_LOGD("Routing table for new default %s has corrupt stored values",
                deviceName);
         }
 
         else
         {
-          LOGI("Routing table for new default %s found", deviceName);
+          CNE_LOGV("Routing table for new default %s found", deviceName);
           foundMatchingEntry = true;
           gatewayAddress = routingTableMapIter->second->getGatewayAddress();
         }
@@ -846,13 +847,13 @@ bool modifyDefaultRoute
 
           if (NULL == destinationAddress)
           {
-            LOGW("Entry in custom route map is corrupted");
+            CNE_LOGD("Entry in custom route map is corrupted");
             continue;
           }
 
           if (NULL == currentDevice)
           {
-            LOGW("Value in custom route map with destination %s is corrupted",
+            CNE_LOGD("Value in custom route map with destination %s is corrupted",
                  destinationAddress);
             continue;
           }
@@ -860,7 +861,7 @@ bool modifyDefaultRoute
           if (0 == strcmp((char *)currentDevice->getDeviceName(),
                           (char *)deviceName))
           {
-            LOGI("Custom route for new default %s found", deviceName);
+            CNE_LOGV("Custom route for new default %s found", deviceName);
             foundMatchingEntry = true;
             gatewayAddress = currentDevice->getGatewayAddress();
             break;
@@ -870,7 +871,7 @@ bool modifyDefaultRoute
 
       if (!foundMatchingEntry)
       {
-        LOGI("No routing tables or entries found for new default device %s",
+        CNE_LOGV("No routing tables or entries found for new default device %s",
              deviceName);
       }
 
@@ -885,18 +886,18 @@ bool modifyDefaultRoute
       // being deleted when no tables exist
       if (NULL == defaultDevice)
       {
-        LOGE("No stored default device; use deleteDefaultEntryFromMainTable.");
+        CNE_LOGD("No stored default device; use deleteDefaultEntryFromMainTable.");
         return false;
       }
 
-      LOGI("Deleting default routing table");
+      CNE_LOGV("Deleting default routing table");
 
       break;
     }
 
     default:
     {
-      LOGE("Unsupported command action found while changing the default table");
+      CNE_LOGD("Unsupported command action found while changing the default table");
       return false;
     }
   }
@@ -969,13 +970,13 @@ bool modifyRoutingTable
   int32_t tableNumber;
   int32_t priorityNumber;
 
-  RoutingTableInfo *currentDevice;
+  RoutingTableInfo *currentDevice = NULL;
   map<uint8_t*, RoutingTableInfo*>::iterator routingTableMapIter;
   set<int32_t>::iterator tableNumberSetIter;
 
   if (NULL == deviceName)
   {
-    LOGE("A null device name was passed while modifying a routing table");
+    CNE_LOGD("A null device name was passed while modifying a routing table");
     return false;
   }
 
@@ -983,18 +984,18 @@ bool modifyRoutingTable
   {
     case ACTIONS_ADD_ENUM:
     {
-      LOGI("Adding a routing table for interface %s", deviceName);
+      CNE_LOGV("Adding a routing table for interface %s", deviceName);
 
       if (NULL == sourcePrefix)
       {
-        LOGE("A null source prefix was passed when adding the %s table",
+        CNE_LOGD("A null source prefix was passed when adding the %s table",
              deviceName);
         return false;
       }
 
       if (NULL == gatewayAddress)
       {
-        LOGI("A null gateway address was passed when adding the %s table",
+        CNE_LOGV("A null gateway address was passed when adding the %s table",
              deviceName);
       }
 
@@ -1003,7 +1004,7 @@ bool modifyRoutingTable
       if ((routingTableMapIter != routingTableMap.end()) &&
           (NULL == routingTableMapIter->second))
       {
-        LOGW("Adding duplicate routing table with corrupt device information");
+        CNE_LOGD("Adding duplicate routing table with corrupt device information");
         routingTableMap.erase(deviceName);
       }
 
@@ -1062,13 +1063,13 @@ bool modifyRoutingTable
         else {
           if (NULL == gatewayAddress)
           {
-            LOGI("Adding a duplicate %s table with source %s.",
+            CNE_LOGV("Adding a duplicate %s table with source %s.",
                  deviceName, sourcePrefix);
             return true;
           }
 
           else {
-            LOGI("Adding a duplicate %s table with gateway %s and source %s.",
+            CNE_LOGV("Adding a duplicate %s table with gateway %s and source %s.",
                  deviceName, sourcePrefix, gatewayAddress);
             return true;
           }
@@ -1076,13 +1077,13 @@ bool modifyRoutingTable
       }
 
       else {
-        LOGI("Device '%s' not found as an active interface", deviceName);
+        CNE_LOGV("Device '%s' not found as an active interface", deviceName);
       }
 
       // Instantiating more than 252 tables simultaneously is an error
       if (MAX_TABLE_NUMBER - MIN_TABLE_NUMBER < tableNumberSet.size())
       {
-        LOGE("Too many tables exist to add %s. %d tables are defined",
+        CNE_LOGD("Too many tables exist to add %s. %d tables are defined",
              deviceName, tableNumberSet.size());
         return false;
       }
@@ -1114,7 +1115,7 @@ bool modifyRoutingTable
           (NULL == currentDevice->getDeviceName()) ||
           (NULL == currentDevice->getSourcePrefix()))
       {
-        LOGE("Failed to allocate new device information while adding table %s.",
+        CNE_LOGD("Failed to allocate new device information while adding table %s.",
              deviceName);
         return false;
       }
@@ -1124,11 +1125,11 @@ bool modifyRoutingTable
 
     case ACTIONS_DELETE_ENUM:
     {
-      LOGI("Deleting routing table for interface %s", deviceName);
+      CNE_LOGV("Deleting routing table for interface %s", deviceName);
 
       if (routingTableMap.empty())
       {
-        LOGE("Deleting a table when no table exists.");
+        CNE_LOGD("Deleting a table when no table exists.");
         return false;
       }
 
@@ -1136,14 +1137,14 @@ bool modifyRoutingTable
 
       if (routingTableMapIter == routingTableMap.end())
       {
-        LOGE("Cannot delete table %s that has not been created.", deviceName);
+        CNE_LOGD("Cannot delete table %s that has not been created.", deviceName);
         return false;
       }
 
       currentDevice = routingTableMapIter->second;
       if (NULL == currentDevice)
       {
-        LOGE("Deleting table with a stored name and null value");
+        CNE_LOGD("Deleting table with a stored name and null value");
         return false;
       }
 
@@ -1154,7 +1155,7 @@ bool modifyRoutingTable
 
     default:
     {
-      LOGE("Unsupported command action found while modifying a table");
+      CNE_LOGD("Unsupported command action found while modifying a table");
       return false;
     }
   }
@@ -1207,7 +1208,7 @@ bool modifyRoutingTable
       // If there is no default entry, the new device should be the default.
       if (NULL == defaultDevice)
       {
-        LOGI("Routing table added when no default exists. Adding new default.");
+        CNE_LOGV("Routing table added when no default exists. Adding new default.");
         modifyDefaultRoute(deviceName, ACTIONS_REPLACE_ENUM);
       }
 
@@ -1222,7 +1223,7 @@ bool modifyRoutingTable
       // If there are no more tables, then there should be no default device.
       if (0 == tableNumberSet.size())
       {
-        LOGI("Removing default table after no devices are known to be up");
+        CNE_LOGV("Removing default table after no devices are known to be up");
         modifyDefaultRoute(NULL, ACTIONS_DELETE_ENUM);
       }
 
@@ -1233,7 +1234,7 @@ bool modifyRoutingTable
       {
         uint8_t *newDefaultName = routingTableMap.begin()->first;
 
-        LOGI("Replacing old default device with %s", newDefaultName);
+        CNE_LOGV("Replacing old default device with %s", newDefaultName);
         modifyDefaultRoute(newDefaultName, ACTIONS_REPLACE_ENUM);
       }
 
@@ -1288,7 +1289,7 @@ bool modifyRule
 {
   if (NULL == currentDevice)
   {
-    LOGE("A null device was passed while modifying a rule");
+    CNE_LOGD("A null device was passed while modifying a rule");
     return false;
   }
 
@@ -1301,7 +1302,7 @@ bool modifyRule
   if ((ACTIONS_ADD_ENUM == commandAction) &&
        (routingTableMapIter == routingTableMap.end()))
   {
-    LOGE("Cannot %s a rule for nonexistant table %s",
+    CNE_LOGD("Cannot %s a rule for nonexistant table %s",
          cmdLineActionEnumToString(commandAction),
          deviceName);
      return false;
@@ -1375,7 +1376,7 @@ bool cmdLineCaller
 
   if (NULL == cmdLineFirstWord)
   {
-    LOGE("No actual command passed to build a command line.");
+    CNE_LOGD("No actual command passed to build a command line.");
     return false;
   }
 
@@ -1398,7 +1399,7 @@ bool cmdLineCaller
 
   if (NULL == cmdLineString)
   {
-    LOGE("Could not allocate memory to build command line string.");
+    CNE_LOGW("Could not allocate memory to build command line string.");
     return false;
   }
 
@@ -1407,7 +1408,7 @@ bool cmdLineCaller
                       strlen((char *)cmdLineFirstWord) * sizeof(uint8_t) + 1);
   if (memLength > strlen((char *)cmdLineFirstWord) * sizeof(uint8_t) + 1)
   {
-    LOGE("Failure building first word of command line string.");
+    CNE_LOGD("Failure building first word of command line string.");
     delete [] cmdLineString;
     return false;
   }
@@ -1424,7 +1425,7 @@ bool cmdLineCaller
                         sizeof(uint8_t) + 1);
     if (memLength > strlen(cmdLineString) * sizeof(char) + sizeof(uint8_t) + 1)
     {
-      LOGE("Failure adding whitespace to command line string.");
+      CNE_LOGD("Failure adding whitespace to command line string.");
       delete [] cmdLineString;
       va_end(cmdLineWordList);
       return false;
@@ -1438,7 +1439,7 @@ bool cmdLineCaller
     if (memLength > strlen(cmdLineString) * sizeof(char) +
                     strlen((char *)nextWord) * sizeof(uint8_t) + 1)
     {
-      LOGE("Failure adding next word to command line string.");
+      CNE_LOGD("Failure adding next word to command line string.");
       delete [] cmdLineString;
       va_end(cmdLineWordList);
       return false;
@@ -1449,7 +1450,7 @@ bool cmdLineCaller
 
   cmdLineString[byteLength + numberOfSpaces] = '\0';
 
-  LOGI("Iproute2 will be called with: %s", cmdLineString);
+  CNE_LOGV("Iproute2 will be called with: %s", cmdLineString);
 
   int cmdLineExitValue = system(cmdLineString);
 
@@ -1457,12 +1458,12 @@ bool cmdLineCaller
 
   if (0 != cmdLineExitValue)
   {
-    LOGE("Command line call to iproute2 failed with exitvalue %d.",
+    CNE_LOGD("Command line call to iproute2 failed with exitvalue %d.",
          cmdLineExitValue);
     return false;
   }
 
-  LOGI("Iproute2 successfully called.", cmdLineString);
+  CNE_LOGV("Iproute2 successfully called.");
 
   return true;
 }
@@ -1591,16 +1592,16 @@ bool cnd_iproute2::deleteDeviceCustomEntriesInMainTable
 {
   if (NULL == deviceName)
   {
-    LOGE("Null device name was passed when adding a custom route");
+    CNE_LOGD("Null device name was passed when adding a custom route");
     return false;
   }
 
-  LOGI("Deleting custom routes in the main table through interface %s",
+  CNE_LOGV("Deleting custom routes in the main table through interface %s",
        deviceName);
 
   if (customRouteMap.empty())
   {
-    LOGE("Deleting a custom route in the main table when no route exists.");
+    CNE_LOGD("Deleting a custom route in the main table when no route exists.");
     return false;
   }
 
@@ -1620,13 +1621,13 @@ bool cnd_iproute2::deleteDeviceCustomEntriesInMainTable
 
     if (NULL == destinationAddress)
     {
-      LOGW("Entry in currentDevice is corrupted.");
+      CNE_LOGD("Entry in currentDevice is corrupted.");
       continue;
     }
 
     if (NULL == currentDevice)
     {
-      LOGW("Entry in currentDevice with destination %s is corrupted",
+      CNE_LOGD("Entry in currentDevice with destination %s is corrupted",
            destinationAddress);
       continue;
     }
@@ -1643,7 +1644,7 @@ bool cnd_iproute2::deleteDeviceCustomEntriesInMainTable
 
   if (!foundMatchingEntry)
   {
-    LOGE("No entry was found with interface name %s.", deviceName);
+    CNE_LOGD("No entry was found with interface name %s.", deviceName);
     return false;
   }
 
@@ -1667,7 +1668,7 @@ bool cnd_iproute2::deleteDefaultEntryInMainTable
   uint8_t *deviceName
 )
 {
-  LOGI("Deleting %s interface from main table.", deviceName);
+  CNE_LOGV("Deleting %s interface from main table.", deviceName);
 
   if (!cmdLineCaller(ROUTING_CMD,
                      cmdLineActionEnumToString(ACTIONS_DELETE_ENUM),
@@ -1754,7 +1755,7 @@ bool cnd_iproute2::showRoutingTable
 {
   if (NULL == deviceName)
   {
-    LOGE("A null device name was passed while displaying a table.");
+    CNE_LOGD("A null device name was passed while displaying a table.");
     return false;
   }
 

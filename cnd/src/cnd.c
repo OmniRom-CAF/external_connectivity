@@ -15,14 +15,14 @@
 ** limitations under the License.
 */
 
+#define LOG_TAG "CND"
+
 #include <stdio.h>
 #include <assert.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <cnd.h>
 #include "cutils/properties.h"
-
-#define LOG_TAG "CND"
 
 int main (int argc, char **argv)
 {
