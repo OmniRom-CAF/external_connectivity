@@ -187,6 +187,7 @@ bool modifyCustomRouteInMainTable
 bool modifyDefaultRoute
 (
   uint8_t *deviceName,
+  uint8_t *gatewayAddress,
   Cmd_line_actions commandAction
 );
 
@@ -787,10 +788,14 @@ bool modifyCustomRouteInMainTable
 bool modifyDefaultRoute
 (
   uint8_t *deviceName,
+  uint8_t *cmdGatewayAddress,
   Cmd_line_actions commandAction
 )
 {
   uint8_t *gatewayAddress = NULL;
+
+  CNE_LOGV("modifyDefaultRoute: devName:%s, cmdGateway:%s, action:%d", 
+           deviceName, cmdGatewayAddress, commandAction);
 
   switch(commandAction)
   {
@@ -905,6 +910,9 @@ bool modifyDefaultRoute
   // These commands may fail if the kernel has already executed an operation on
   // its own. Treat a call to modify the main table as if was successful.
   if (NULL == gatewayAddress)
+    gatewayAddress = cmdGatewayAddress;
+
+  if (NULL == gatewayAddress)
   {
     cmdLineCaller(ROUTING_CMD,
                   cmdLineActionEnumToString(commandAction),
@@ -979,7 +987,6 @@ bool modifyRoutingTable
     CNE_LOGD("A null device name was passed while modifying a routing table");
     return false;
   }
-
   switch(commandAction)
   {
     case ACTIONS_ADD_ENUM:
@@ -1209,7 +1216,7 @@ bool modifyRoutingTable
       if (NULL == defaultDevice)
       {
         CNE_LOGV("Routing table added when no default exists. Adding new default.");
-        modifyDefaultRoute(deviceName, ACTIONS_REPLACE_ENUM);
+        modifyDefaultRoute(deviceName, gatewayAddress, ACTIONS_REPLACE_ENUM);
       }
 
       break;
@@ -1221,10 +1228,13 @@ bool modifyRoutingTable
       tableNumberSet.erase(tableNumber);
 
       // If there are no more tables, then there should be no default device.
+      // There is a scenarios where iproute2 is recorded having no table since
+      // iproute2 not adding it, but there is default entry in main table 
+      // created by system when network comes up, and if the default entry is
+      // removed, then there will be no default. Need to revisit iproute2.
       if (0 == tableNumberSet.size())
       {
-        CNE_LOGV("Removing default table after no devices are known to be up");
-        modifyDefaultRoute(NULL, ACTIONS_DELETE_ENUM);
+        CNE_LOGW("Warning: There are no tables");
       }
 
       // If the default table has been deleted and another device is available,
@@ -1235,7 +1245,7 @@ bool modifyRoutingTable
         uint8_t *newDefaultName = routingTableMap.begin()->first;
 
         CNE_LOGV("Replacing old default device with %s", newDefaultName);
-        modifyDefaultRoute(newDefaultName, ACTIONS_REPLACE_ENUM);
+        modifyDefaultRoute(newDefaultName, gatewayAddress, ACTIONS_REPLACE_ENUM);
       }
 
       break;
@@ -1706,10 +1716,13 @@ bool cnd_iproute2::deleteDefaultEntryInMainTable
  *--------------------------------------------------------------------------*/
 bool cnd_iproute2::replaceDefaultEntryInMainTable
 (
-  uint8_t *deviceName
+  uint8_t *deviceName,
+  uint8_t *gatewayAddress
 )
 {
-  return (modifyDefaultRoute(deviceName, ACTIONS_REPLACE_ENUM));
+  CNE_LOGV("replaceDefaultEntryInMainTable: devName:%s, gatewayAddress:%s", 
+            deviceName, gatewayAddress);
+  return (modifyDefaultRoute(deviceName, gatewayAddress, ACTIONS_REPLACE_ENUM));
 }
 
 /*----------------------------------------------------------------------------
