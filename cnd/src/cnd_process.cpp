@@ -236,7 +236,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
         break;
       case CNE_IPROUTE2_REPLACE_DEFAULT_ENTRY_IN_MAIN:
       case CNE_IPROUTE2_REPLACE_HOST_DEFAULT_ENTRY_IN_MAIN:
-        cnd_iproute2::getInstance()->replaceDefaultEntryInMainTable(ifName);
+        cnd_iproute2::getInstance()->replaceDefaultEntryInMainTable(ifName, gatewayAddr);
         break;
       case CNE_IPROUTE2_ADD_HOST_IN_MAIN:
         cnd_iproute2::getInstance()->addCustomEntryInMainTable(ipAddr, ifName, gatewayAddr);

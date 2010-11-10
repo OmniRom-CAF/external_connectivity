@@ -214,7 +214,8 @@ class cnd_iproute2
     */
     bool replaceDefaultEntryInMainTable
     (
-      uint8_t *deviceName
+      uint8_t *deviceName,
+      uint8_t *gatewayAddress
     );
 
     /**
