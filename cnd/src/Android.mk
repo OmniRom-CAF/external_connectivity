@@ -1,6 +1,5 @@
 # For cnd binary
 # =======================
-ifneq ($(BUILD_ID), GINGERBREAD)
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -15,7 +14,9 @@ LOCAL_MODULE:= cnd
 
 LOCAL_SHARED_LIBRARIES := \
         libutils \
+        libbinder \
         libcutils \
+        libdl \
         libhardware_legacy \
 
 LOCAL_C_INCLUDES := \
@@ -25,5 +26,4 @@ LOCAL_C_INCLUDES := \
 include external/connectivity/stlport/libstlport.mk
 
 include $(BUILD_EXECUTABLE)
-endif
 # vim: et

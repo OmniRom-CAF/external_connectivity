@@ -28,15 +28,15 @@
 #define CNE_LOGW(...) LOGW(__VA_ARGS__)
 #define CNE_LOGI(...) \
     ( (CONDITION(CNE_DEBUG_LOGGING)) \
-    ? LOG(LOG_INFO, LOCAL_TAG, __VA_ARGS__) \
+    ? (void)LOG(LOG_INFO, LOCAL_TAG, __VA_ARGS__) \
     : (void)0 )
 #define CNE_LOGD(...) \
     ( (CONDITION(CNE_DEBUG_LOGGING)) \
-    ? LOG(LOG_DEBUG, LOCAL_TAG, __VA_ARGS__) \
+    ? (void)LOG(LOG_DEBUG, LOCAL_TAG, __VA_ARGS__) \
     : (void)0 )
 #define CNE_LOGV(...) \
     ( (CONDITION(CNE_DEBUG_LOGGING)) \
-    ? LOG(LOG_VERBOSE, LOCAL_TAG, __VA_ARGS__) \
+    ? (void)LOG(LOG_VERBOSE, LOCAL_TAG, __VA_ARGS__) \
     : (void)0 )
 
 #ifdef __cplusplus
