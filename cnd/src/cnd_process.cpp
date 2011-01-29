@@ -1,6 +1,6 @@
 /*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, 2011 Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 */
 #define LOG_TAG "CND_PROCESS"
 #define LOCAL_TAG "CND_PROCESS_DEBUG"
+#define LOG_NDEBUG 0
+#define LOG_NDDEBUG 0
+#define LOG_NIDEBUG 0
 
 #include <cutils/sockets.h>
 #include <cutils/jstring.h>
@@ -27,7 +30,6 @@
 #include <cutils/jstring.h>
 
 #include <sys/types.h>
-#include <pwd.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,9 +100,6 @@ static pthread_t s_tid_dispatch;
 static int s_started = 0;
 
 static int s_fdListen = -1;
-static int s_fdCommand = -1;
-
-static int cnmSvcFd = -1;
 
 static struct cnd_event s_commands_event[MAX_FD_EVENTS];
 static struct cnd_event s_listen_event;
@@ -125,6 +124,7 @@ static RequestInfo *s_toDispatchTail = NULL;
 static void dispatchVoid (Parcel& p, RequestInfo *pRI);
 static void dispatchString (Parcel& p, RequestInfo *pRI);
 static void dispatchStrings (Parcel& p, RequestInfo *pRI);
+static void dispatchInt (Parcel& p, RequestInfo *pRI);
 static void dispatchInts (Parcel& p, RequestInfo *pRI);
 static void dispatchWlanInfo(Parcel &p, RequestInfo *pRI);
 static void dispatchWwanInfo(Parcel &p, RequestInfo *pRI);
@@ -177,15 +177,11 @@ void cnd_sendUnsolicitedMsg(int targetFd, int msgType, int dataLen, void *data)
 {
   int fd;
 
-  if (targetFd == 0)   // TODO find the correct fd, who keeps track of it?
-	fd = cnmSvcFd;
-  else
-	fd = targetFd;
-
   CNE_LOGV ("cnd_sendUnsolicitedMsg: Fd=%d, msgType=%d, datalen=%d\n",
         targetFd, msgType, dataLen);
 
-  unsolicitedMessage(msgType, data, dataLen, fd);
+  //unsolicitedMessage(msgType, data, dataLen, fd);
+  unsolicitedMessage(msgType, data, dataLen, targetFd);
 
 
 }
@@ -194,7 +190,10 @@ static void
 processCommand (int command, void *data, size_t datalen, CND_Token t)
 {
 
-  CNE_LOGV ("processCommand: command=%d, datalen=%d", command, datalen);
+
+  RequestInfo *reqInfo = (RequestInfo *)t;
+  CNE_LOGV ("processCommand: command=%d, datalen=%d, fd=%d", command, datalen, reqInfo->fd);
+
 
   /* Special handling for iproute2 command to setup iproute2 table */
   if ((command == CNE_REQUEST_CONFIG_IPROUTE2_CMD) && (cneServiceEnabled))
@@ -256,7 +255,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
 
   if(cne_processCommand != NULL)
   {
-    cne_processCommand(command, data, datalen);
+    cne_processCommand(reqInfo->fd, command, data, datalen);
   }
   else
   {
@@ -375,6 +374,24 @@ dispatchStrings (Parcel &p, RequestInfo *pRI)
     }
 
     return;
+}
+
+/** Callee expects const int * */
+static void
+dispatchInt (Parcel &p, RequestInfo *pRI)
+{
+    status_t status;
+    int32_t value;
+
+    status = p.readInt32 (&value);
+    if (status != NO_ERROR) {
+        CNE_LOGD ("dispatchInt: invalid block");
+        return;
+    }
+
+    CNE_LOGV ("dispatchInt: int32_t=%d", value);
+
+    processCommand(pRI->pCI->commandNumber, const_cast<int *>(&value), sizeof(int32_t), pRI);
 }
 
 /** Callee expects const int * */
@@ -636,8 +653,9 @@ writeData(int fd, const void *buffer, size_t len)
 
     toWrite = (const uint8_t *)buffer;
 
-    CNE_LOGV ("writeData: len=%d",len);
+    CNE_LOGV ("writeData: fd=%d, len=%d, offset=%d", fd, len, writeOffset);
     while (writeOffset < len) {
+        CNE_LOGV ("writeData in loop: fd=%d, len=%d, offset=%d", fd, len, writeOffset);
         ssize_t written;
         do {
             written = write (fd, toWrite + writeOffset,
@@ -659,7 +677,6 @@ writeData(int fd, const void *buffer, size_t len)
 static int
 sendResponseRaw (const void *data, size_t dataSize, int fdCommand)
 {
-    int fd = fdCommand;
     int ret;
     uint32_t header;
 
@@ -678,13 +695,16 @@ sendResponseRaw (const void *data, size_t dataSize, int fdCommand)
 
     header = htonl(dataSize);
 
-    ret = writeData(fd, (void *)&header, sizeof(header));
+
+    CNE_LOGD("sendResponseRaw: fd=%d, datasize=%d, header=%d",
+              fdCommand, dataSize, header);
+    ret = writeData(fdCommand, (void *)&header, sizeof(header));
 
     if (ret < 0) {
         return ret;
     }
 
-    writeData(fd, data, dataSize);
+    writeData(fdCommand, data, dataSize);
 
     if (ret < 0) {
       pthread_mutex_unlock(&s_writeMutex);
@@ -800,6 +820,7 @@ static int responseRaw(Parcel &p, void *response, size_t responselen)
     if (response == NULL) {
         p.writeInt32(-1);
     } else {
+        CNE_LOGD("responseRaw len=%d\n", responselen);
         p.writeInt32(responselen);
         p.write(response, responselen);
     }
@@ -966,6 +987,9 @@ processCommandBuffer(void *buffer, size_t buflen, int fd)
     status = p.readInt32(&request);
     status = p.readInt32 (&token);
 
+    CNE_LOGD("processCommandBuffer: fd=%d, requestcode=%d, token=%d",
+         fd, request, token);
+
     if (status != NO_ERROR) {
         CNE_LOGD("processCommandBuffer: invalid request block");
         return -1;
@@ -973,7 +997,7 @@ processCommandBuffer(void *buffer, size_t buflen, int fd)
 
     if (request < 1 || request >= (int32_t)NUM_ELEMS(s_commands)) {
         CNE_LOGD("processCommandBuffer: unsupported request code %d token %d",
-             request, token);
+                  request, token);
         return -1;
     }
 
@@ -1014,7 +1038,7 @@ static void processCommandsCallback(int fd, void *param)
     for (;;) {
         /* loop until EAGAIN/EINTR, end of stream, or other error */
         ret = record_stream_get_next(p_rs, &p_record, &recordlen);
-        CNE_LOGV ("processCommandsCallback: len=%d, ret=%d", recordlen, ret);
+        CNE_LOGV ("processCommandsCallback: len=%d, ret=%d, fd=%d", recordlen, ret, fd);
         if (ret == 0 && p_record == NULL) {
 	        CNE_LOGV ("processCommandsCallback: end of stream");
             break;
@@ -1025,7 +1049,8 @@ static void processCommandsCallback(int fd, void *param)
 
         }
     }
-
+    CNE_LOGV ("processCommandsCallback: exit loop, ret=%d, errno=%d, fd=%d", 
+              ret, errno, fd);
     if (ret == 0 || !(errno == EAGAIN || errno == EINTR)) {
         /* fatal error or end-of-stream */
         if (ret != 0) {
@@ -1033,12 +1058,22 @@ static void processCommandsCallback(int fd, void *param)
         } else {
             CNE_LOGD("EOS.  Closing command socket.");
         }
-        close(s_fdCommand);
-        s_fdCommand = -1;
-        command_index = 0;
+        close(fd);
+        /* remove from watch list */
+        for(int i=0; i<MAX_FD_EVENTS; i++) {
+            CNE_LOGD("processCommandsCallback: fd=%d, commandFd=%d",
+                     fd, s_commands_event[i].fd);
+            if (s_commands_event[i].fd == fd) {
+                CNE_LOGD("processCommandsCallback: matched fd=%d for index=%d",
+                         fd, i);
+                cnd_event_del(&s_commands_event[i]);
+                command_index--;
+                break;
+            }
+        }
         record_stream_free(p_rs);
-        /* start listening for new connections again */
-        cnd_event_add(&s_listen_event);
+        /* notify CNE of the socket closed */
+        cne_processCommand(fd, CNE_NOTIFY_SOCKET_CLOSED_CMD, NULL, 0);
         onCommandsSocketClosed();
     }
 
@@ -1048,18 +1083,14 @@ static void listenCallback (int fd, void *param)
 {
     int ret;
     int err;
-    int is_cnm_svc_socket;
     RecordStream *p_rs;
-    int i;
-    char tmpBuf[10];
-    int32_t pid, pid2, pid3, pid4;
     struct sockaddr_un peeraddr;
     socklen_t socklen = sizeof (peeraddr);
     struct ucred creds;
     socklen_t szCreds = sizeof(creds);
-    struct passwd *pwd = NULL;
+    int s_fdCommand;
 
-    assert (s_fdCommand < 0);
+    CNE_LOGD("listenCallback: fd=%d, s_fdListen=%d", fd, s_fdListen);
     assert (fd == s_fdListen);
     s_fdCommand = accept(s_fdListen, (sockaddr *) &peeraddr, &socklen);
 
@@ -1072,7 +1103,6 @@ static void listenCallback (int fd, void *param)
 
     errno = 0;
     err = getsockopt(s_fdCommand, SOL_SOCKET, SO_PEERCRED, &creds, &szCreds);
- 	cnmSvcFd = s_fdCommand; // save command descriptor to be used for communication
     ret = fcntl(s_fdCommand, F_SETFL, O_NONBLOCK);
 
     if (ret < 0) {
@@ -1089,6 +1119,10 @@ static void listenCallback (int fd, void *param)
       CNE_LOGD ("Error: exceeding number of supported connection");
 	  return;
     }
+
+    CNE_LOGV("listenCallback: command_index=%d, fd=%d",
+             command_index, s_fdCommand);
+
     cnd_event_set (&s_commands_event[command_index], s_fdCommand, 1,
                    processCommandsCallback, p_rs);
     cnd_event_add (&s_commands_event[command_index]);

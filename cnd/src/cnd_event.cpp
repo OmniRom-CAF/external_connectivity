@@ -1,6 +1,6 @@
 /*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, 2011 Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -17,6 +17,10 @@
 
 #define LOG_TAG "CND_EVENT"
 #define LOCAL_TAG "CND_EVENT_DEBUG"
+
+#define LOG_NDEBUG 0
+#define LOG_NDDEBUG 0
+#define LOG_NIDEBUG 0
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -103,22 +107,22 @@ static void removeWatch(struct cnd_event * ev, int index)
 static void processReadReadyEvent(fd_set * rfds, int n)
 {
 
-    CNE_LOGV("processReadReadyEvent: n=%d, rfds0=%ld", n, rfds->fds_bits[0]);
+    CNE_LOGV("processReadReadyEvent: num of fd set=%d, rfds0=%ld", n, rfds->fds_bits[0]);
+
     MUTEX_ACQUIRE();
 
     for (int i = 0; (i < MAX_FD_EVENTS) && (n > 0); i++) {
-
         struct cnd_event * rev = watch_table[i];
-
-    if (rev != NULL)
-        CNE_LOGV("processReadReadyEvent: i=%d, fd=%d, rfds0=%ld", i, rev->fd, rfds->fds_bits[0]);
-    else
-        CNE_LOGV("processReadReadyEvent: i=%d, rev is NULL", i);
-
+        CNE_LOGD("processReadReadyEvent: watch_table index=%d", i);
+        if (rev == NULL) {
+            CNE_LOGD("processReadReadyEvent: REV is NULL at i=%d", i);
+        }
         if (rev != NULL && FD_ISSET(rev->fd, rfds)) {
             addToList(rev, &pending_list);
-            CNE_LOGV("processReadReadyEvent: add to pendingList fd=%d", rev->fd);
+            CNE_LOGV("processReadReadyEvent: add to pendingList at watch_table"
+                     "index=%d, fd=%d", i, rev->fd);
             if (rev->persist == 0) {
+                CNE_LOGV("processReadReadyEvent: Should not get here, fd=%d", rev->fd);
                  removeWatch(rev, i);
             }
             n--;
@@ -214,20 +218,21 @@ void cnd_event_set(struct cnd_event * ev, int fd, int persist, cnd_event_cb func
 void cnd_event_add(struct cnd_event * ev)
 {
 
+    CNE_LOGV("cnd_event_add-called:fd=%d, readFds0=%ld", ev->fd, readFds.fds_bits[0]);
+
     MUTEX_ACQUIRE();
 
     for (int i = 0; i < MAX_FD_EVENTS; i++) {
         if (watch_table[i] == NULL) {
             watch_table[i] = ev;
             ev->index = i;
-               CNE_LOGV("cnd_event_add-before: add at i=%d for fd=%d, readFds0=%ld", i, ev->fd, readFds.fds_bits[0]);
-
+            CNE_LOGV("cnd_event_add-before: add at index=%d for fd=%d, readFds0=%ld",
+                     i, ev->fd, readFds.fds_bits[0]);
             FD_SET(ev->fd, &readFds);
-
             if (ev->fd >= nfds)
-        nfds = ev->fd+1;
-            CNE_LOGV("cnd_event_add-after: add at i=%d for fd=%d, readFds0=%ld", i, ev->fd, readFds.fds_bits[0]);
-
+                nfds = ev->fd+1;
+            CNE_LOGV("cnd_event_add-after: add at index=%d for fd=%d, readFds0=%ld",
+                     i, ev->fd, readFds.fds_bits[0]);
             break;
         }
     }
@@ -240,7 +245,6 @@ void cnd_event_add(struct cnd_event * ev)
 // Remove event from watch or timer list
 void cnd_event_del(struct cnd_event * ev)
 {
-
 
     CNE_LOGV("cnd_event_del: index=%d", ev->index);
     MUTEX_ACQUIRE();

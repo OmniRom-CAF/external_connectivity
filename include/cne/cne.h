@@ -32,7 +32,7 @@
 
 -----------------------------------------------------------------------------*/
 
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010, 2011 Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -132,10 +132,17 @@ typedef enum
 
   CNE_NOTIFY_TIMER_EXPIRED_CMD,
   CNE_REQUEST_START_FMC_CMD,
-  CNE_REQUEST_STOP_FMC_CMD
-  /*  Add other commands here, note these should match with the ones in the
-   *  java layer.
+  CNE_REQUEST_STOP_FMC_CMD,
+  CNE_REQUEST_UPDATE_WWAN_DORMANCY_INFO_CMD,
+  CNE_REQUEST_UPDATE_DEFAULT_NETWORK_INFO_CMD,
+  CNE_NOTIFY_SOCKET_CLOSED_CMD,
+  /**
+    Add other commands here, note these should match with the ones in the
+    java layer.
+
+    CNE_REQUEST_VENDOR_CMD should always be last cmd in this enum
    */
+  CNE_REQUEST_VENDOR_CMD
 
 } cne_cmd_enum_type;
 
@@ -165,7 +172,11 @@ typedef enum
   CNE_REQUEST_START_SCAN_WLAN_MSG,
   CNE_NOTIFY_INFLIGHT_STATUS_MSG,
   CNE_NOTIFY_FMC_STATUS_MSG,
-  CNE_NOTIFY_HOST_ROUTING_IP_MSG
+  CNE_NOTIFY_HOST_ROUTING_IP_MSG,
+  /**
+    CNE_NOTIFY_VENDOR_MSG should always be last msg in this enum
+   */
+  CNE_NOTIFY_VENDOR_MSG
 
 
 } cne_msg_enum_type;
@@ -258,6 +269,39 @@ typedef enum
   /**< INVALID RAT */
 
 }cne_rat_type;
+
+/**
+ * represents battery status, values should match
+ * BatteryManager.java
+ */
+typedef enum
+{
+  CNE_BATTERY_STATUS_UNKNOWN = 1,
+  CNE_BATTERY_STATUS_CHARGING,
+  CNE_BATTERY_STATUS_DISCHARGING,
+  CNE_BATTERY_STATUS_NOT_CHARGING,
+  CNE_BATTERY_STATUS_FULL
+} cne_battery_status;
+
+/**
+ * represets battery level
+ */
+typedef enum
+{
+  CNE_BATTERY_LEVEL_MIN = 0,
+  CNE_BATTERY_LEVEL_MAX = 100
+} cne_battery_level;
+
+/**
+ * represets charger type, values should match
+ * BatteryManager.java
+ */
+typedef enum
+{
+  CNE_BATTERY_PLUGGED_NONE,
+  CNE_BATTERY_PLUGGED_AC,
+  CNE_BATTERY_PLUGGED_USB
+} cne_battery_charger_type;
 
 /**
  This is a type representing the list of possible subRATs

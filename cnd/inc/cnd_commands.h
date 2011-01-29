@@ -1,6 +1,6 @@
 /*
 ** Copyright 2006, The Android Open Source Project
-** Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2010, 2011 Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@
     {CNE_REQUEST_CONFIG_IPROUTE2_CMD, dispatchIproute2Cmd, responseVoid},
     {CNE_NOTIFY_TIMER_EXPIRED_CMD, dispatchVoid, responseVoid},
     {CNE_REQUEST_START_FMC_CMD, dispatchString, responseVoid},
-    {CNE_REQUEST_STOP_FMC_CMD, dispatchVoid, responseVoid}
-
-
+    {CNE_REQUEST_STOP_FMC_CMD, dispatchVoid, responseVoid},
+    {CNE_REQUEST_UPDATE_WWAN_DORMANCY_INFO_CMD, dispatchInt, responseVoid},
+    {CNE_REQUEST_UPDATE_DEFAULT_NETWORK_INFO_CMD, dispatchInt, responseVoid},
+    {CNE_NOTIFY_SOCKET_CLOSED_CMD, dispatchVoid, responseVoid},
+    {CNE_REQUEST_VENDOR_CMD, dispatchRaw, responseVoid}
