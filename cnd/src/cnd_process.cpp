@@ -459,6 +459,7 @@ dispatchWlanInfo(Parcel &p, RequestInfo *pRI)
     args.rssi = (int)t;
     args.ssid = strdupReadString(p);
     args.ipAddr = strdupReadString(p);
+    args.iface = strdupReadString(p);
     args.timeStamp = strdupReadString(p);
 
     if (status != NO_ERROR){
@@ -535,6 +536,7 @@ dispatchWwanInfo(Parcel &p, RequestInfo *pRI)
     status = p.readInt32 (&t);
     args.roaming = (int)t;
     args.ipAddr = strdupReadString(p);
+    args.iface = strdupReadString(p);
     args.timeStamp = strdupReadString(p);
 
     if (status != NO_ERROR){

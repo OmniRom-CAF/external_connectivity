@@ -547,6 +547,7 @@ typedef struct  {
     int32_t rssi;
     char *ssid;
     char *ipAddr;
+    char *iface;
     char *timeStamp;
 } CneWlanInfoType;
 
@@ -556,6 +557,7 @@ typedef struct  {
     int32_t rssi;
     int32_t roaming;
     char *ipAddr;
+    char *iface;
     char *timeStamp;
 } CneWwanInfoType;
 
