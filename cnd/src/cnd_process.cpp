@@ -1053,7 +1053,7 @@ static void processCommandsCallback(int fd, void *param)
     }
     CNE_LOGV ("processCommandsCallback: exit loop, ret=%d, errno=%d, fd=%d", 
               ret, errno, fd);
-    if (ret == 0 || !(errno == EAGAIN || errno == EINTR)) {
+    if (ret == 0 || !(errno == EAGAIN || errno == EINTR || errno == EBADF)) {
         /* fatal error or end-of-stream */
         if (ret != 0) {
             CNE_LOGD("error on reading command socket errno:%d\n", errno);
