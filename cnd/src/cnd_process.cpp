@@ -29,7 +29,10 @@
 #include <binder/Parcel.h>
 #include <cutils/jstring.h>
 
+#include <linux/capability.h>
+#include <linux/prctl.h>
 #include <sys/types.h>
+#include <pwd.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,6 +59,7 @@
 namespace android {
 
 #define SOCKET_NAME_CND "cnd"
+#define RUN_LEVEL_CND   "radio"
 
 // match with constant in .java
 #define MAX_COMMAND_BYTES (8 * 1024)
@@ -213,7 +217,7 @@ processCommand (int command, void *data, size_t datalen, CND_Token t)
     ifName = ((unsigned char **)data)[1];
     ipAddr = ((unsigned char **)data)[2];
     gatewayAddr = ((unsigned char **)data)[3];
- 
+
     CNE_LOGV ("processCommand: iproute2cmd=%d, ipAddr=%s, gatewayAddr=%s, "
           "ifName=%s", cmd, ipAddr, gatewayAddr, ifName);
 
@@ -1051,7 +1055,7 @@ static void processCommandsCallback(int fd, void *param)
 
         }
     }
-    CNE_LOGV ("processCommandsCallback: exit loop, ret=%d, errno=%d, fd=%d", 
+    CNE_LOGV ("processCommandsCallback: exit loop, ret=%d, errno=%d, fd=%d",
               ret, errno, fd);
     if (ret == 0 || !(errno == EAGAIN || errno == EINTR || errno == EBADF)) {
         /* fatal error or end-of-stream */
@@ -1226,6 +1230,35 @@ cnd_init (void)
 
 }
 
+extern "C" void
+cnd_cap_init (void)
+{
+    __user_cap_header_struct hdr;
+    __user_cap_data_struct   data;
+    struct passwd*           usr_info;
+
+    /* Gather Current Capabilities  */
+    hdr.version = _LINUX_CAPABILITY_VERSION;
+    hdr.pid = 0;
+    if (capget(&hdr, &data) < 0)
+      CNE_LOGE("cnd_cap_init could not gather current capabilities: %s\n",strerror(errno));
+
+    /* Tell kernel not clear capabilities when dropping root user id */
+    if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) < 0)
+      CNE_LOGE("cnd_cap_init could not inform kernel of current capabilities prior to dropping root uid.\n" );
+
+	/* Drop root uid and change to radio */
+	usr_info = getpwnam(RUN_LEVEL_CND);
+    if (setuid(usr_info->pw_uid) < 0)
+      CNE_LOGE("cnd_cap_init could not drop root uid.");
+
+	/* Set new process capabilities */
+    data.effective = (1 << (CAP_NET_ADMIN))|(1 << (CAP_NET_RAW));
+    data.permitted = data.effective;
+    data.inheritable = 0;
+    if (capset(&hdr, &data) < 0)
+      CNE_LOGE("cnd_cap_init could not set capabilities: %s\n",strerror(errno));
+}
 
 static void
 cnd_commandComplete(CND_Token t, CND_Errno e, void *response, size_t responselen)
