@@ -12,6 +12,8 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_MODULE:= cnd
 
+LOCAL_MODULE_TAGS := optional
+
 LOCAL_SHARED_LIBRARIES := \
         libutils \
         libbinder \

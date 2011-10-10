@@ -9,6 +9,8 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_MODULE:= librefcne
 
+LOCAL_MODULE_TAGS := optional
+
 LOCAL_SHARED_LIBRARIES := libcutils
 
 LOCAL_C_INCLUDES := \
