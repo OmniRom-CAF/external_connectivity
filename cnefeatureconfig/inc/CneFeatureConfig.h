@@ -41,6 +41,38 @@ enum Feature {
     NSRM = 4,
 };
 
+#include <cutils/log.h>
+
+#ifdef LOGE
+#define CFC_LOGE LOGE
+#else
+#define CFC_LOGE ALOGE
+#endif
+
+#ifdef LOGW
+#define CFC_LOGW LOGW
+#else
+#define CFC_LOGW ALOGW
+#endif
+
+#ifdef LOGD
+#define CFC_LOGD LOGD
+#else
+#define CFC_LOGD ALOGD
+#endif
+
+#ifdef LOGI
+#define CFC_LOGI LOGI
+#else
+#define CFC_LOGI ALOGI
+#endif
+
+#ifdef LOGV
+#define CFC_LOGV LOGV
+#else
+#define CFC_LOGV ALOGV
+#endif
+
 #define CNE_FEATURE_PROP "persist.cne.feature"
 
 #ifdef __cplusplus

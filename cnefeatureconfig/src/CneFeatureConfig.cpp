@@ -35,7 +35,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include<cstring>
 #include "CneFeatureConfig.h"
 #include <stdlib.h>
-#include <cutils/log.h>
 
 /*------------------------------------------------------------------------------
 * Preprocessor Definitions and Constants
@@ -55,7 +54,7 @@ bool isFeatureEnabled(int f)
         bEnabled = cneFeature->isEnabled((Feature) f);
         delete cneFeature;
     } else {
-        LOGE("Failed to instantiate CneFeatureConfig! Default = disabled");
+        CFC_LOGE("Failed to instantiate CneFeatureConfig! Default = disabled");
     }
 
     return bEnabled;
@@ -127,7 +126,7 @@ void CneFeatureConfig::readFeature(void) {
             break;
         }
         default:
-            LOGW("Unknown feature value in property. Features disabled by default");
+            CFC_LOGW("Unknown feature value in property. Features disabled by default");
     }
 }
 
@@ -147,7 +146,7 @@ bool CneFeatureConfig::isEnabled(Feature f) {
             return bWqe;
             break;
         default:
-            LOGW("Feature %d not known, returning default", f);
+            CFC_LOGW("Feature %d not known, returning default", f);
             return false;
     }
 

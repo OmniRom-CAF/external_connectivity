@@ -12,7 +12,7 @@ LOCAL_SHARED_LIBRARIES := libc libcutils libstlport \
 
 LOCAL_C_INCLUDES := \
         external/connectivity/cnefeatureconfig/inc \
-        external/connectivity/stlport/stlport \
+        external/connectivity/stlport/stlport
 
 LOCAL_REQUIRED_MODULES := \
         external/connectivity/stlport
