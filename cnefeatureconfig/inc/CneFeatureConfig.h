@@ -2,7 +2,7 @@
 #define CneFeatureConfig_H
 
 /*=========================================================================
- Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ Copyright (c) 2012, 2014 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -39,6 +39,7 @@ enum Feature {
     FMC = 2,
     WQE = 3,
     NSRM = 4,
+    ATP = 5,
 };
 
 #include <cutils/log.h>
@@ -97,6 +98,7 @@ private:
     bool bFmc;
     bool bWqe;
     bool bNsrm;
+    bool bAtp;
     /* Reads the CNE_FEATURE_PROP to determine which features
        are currently enabled.*/
     void readFeature(void);
@@ -120,6 +122,9 @@ private:
         NSRM_CNE = 4, /* CNE feature is prerequisite */
         FMC_NSRM_CNE = 5, /* CNE feature is prerequisite */
         WQE_NSRM_CNE = 6, /* CNE feature is prerequisite */
+        ATP_CNE = 7, /* CNE feature is prerequisite */
+        ATP_NSRM_CNE = 8, /* CNE feature is prerequisite */
+        ATP_NSRM_WQE_CNE = 9, /* CNE feature is prerequisite */
     };
 
 public:

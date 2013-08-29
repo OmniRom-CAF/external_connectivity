@@ -1,5 +1,5 @@
 /*==============================================================================
-Copyright (c) 2012, The Linux Foundation. All rights reserved.
+Copyright (c) 2012, 2014 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -66,7 +66,8 @@ bool isFeatureEnabled(int f)
 CneFeatureConfig::CneFeatureConfig():bCne(false),
     bFmc(false),
     bWqe(false),
-    bNsrm(false)
+    bNsrm(false),
+    bAtp(false)
 {
 }
 
@@ -125,6 +126,27 @@ void CneFeatureConfig::readFeature(void) {
             bNsrm = true;
             break;
         }
+        case ATP_CNE: //7 --> CNE enabled. ATP mode.
+        {
+            bCne = true;
+            bAtp = true;
+            break;
+        }
+        case ATP_NSRM_CNE: //8 --> CNE enabled. ATP & NSRM mode.
+        {
+            bCne = true;
+            bAtp = true;
+            bNsrm = true;
+            break;
+        }
+        case ATP_NSRM_WQE_CNE: //9 --> CNE enabled. ATP WQE & NSRM mode.
+        {
+            bCne = true;
+            bAtp = true;
+            bNsrm = true;
+            bWqe = true;
+            break;
+        }
         default:
             CFC_LOGW("Unknown feature value in property. Features disabled by default");
     }
@@ -144,6 +166,9 @@ bool CneFeatureConfig::isEnabled(Feature f) {
             break;
         case WQE:
             return bWqe;
+            break;
+        case ATP:
+            return bAtp;
             break;
         default:
             CFC_LOGW("Feature %d not known, returning default", f);
