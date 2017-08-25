@@ -8,7 +8,7 @@ LOCAL_SRC_FILES:= \
 LOCAL_MODULE:= libcnefeatureconfig
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_SHARED_LIBRARIES := libc libcutils
+LOCAL_SHARED_LIBRARIES := libc libcutils liblog
 
 LOCAL_C_INCLUDES := \
         external/connectivity/cnefeatureconfig/inc

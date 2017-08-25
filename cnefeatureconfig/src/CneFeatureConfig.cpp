@@ -32,7 +32,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * Include Files
 * ---------------------------------------------------------------------------*/
 #include <cutils/properties.h>
-#include<cstring>
+#include <cstring>
 #include "CneFeatureConfig.h"
 #include <stdlib.h>
 
